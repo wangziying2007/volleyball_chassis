@@ -1,0 +1,26 @@
+# ---- IDE / 调试配置(本地,不入库) ----
+.vscode/
+.claude/
+
+# ---- Keil MDK:构建输出与临时文件 ----
+# 整个输出目录都是编译产物(.o/.d/.axf/.hex/.map/.htm/.lnp/.dep/.sct)
+MDK-ARM/0818H7/
+# 独立构建产物(防个别文件散落)
+*.o
+*.d
+*.axf
+*.hex
+*.map
+*.build_log.htm
+*.lnp
+*.dep
+*.sct
+# 工程源码/配置需保留:.uvprojx、.uvoptx
+
+# ---- Keil 用户级界面与临时文件 ----
+*.uvguix.*
+MDK-ARM/Listings/
+MDK-ARM/Objects/
+MDK-ARM/ExtDll.iex
+*.bak
+*.tmp
