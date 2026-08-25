@@ -16,10 +16,11 @@
 | VESC | `Motor/VescMotor.c`,速度/位置/电流/占空比/手刹 |
 | ZDrive | `Motor/ZDrive.c`,电流/速度/位置/PVT 及参数查询 |
 | Unitree GO-M8010-6 | `Motor/src/UnitreeMotor.c`,UART7 单路 RS485,绝对编码器,上电默认不自动清零 |
+| 底盘(全向轮) | `Application/Chassis/`,45° 辊轮麦克纳姆式四轮全向底盘,vx/vy/wz 解算 → 四轮 rpm;蓝牙触发使能/复位/设速,快速/慢速模式切换(默认快速 1.0x、慢速 0.25x) |
 | 中断回调 | `Application/IQRhandler.c`,TIM/FDCAN/UART 回调集中 |
 | 任务 | CubeMX 创建,`Application/myostasks.c` 覆盖弱函数 |
 | VOFA+ 打波 | `Communication/VOFA/vofa.c`,JustFloat 协议,UART9 输出,API 见 [DOCS/vofa_plus.md](DOCS/vofa_plus.md) |
-| 蓝牙串口 | `Communication/Bluetooth/`,帧层 bluetooth.c + Payload 协议层 bluetooth_protocol.c,USART6,见 [DOCS/bluetooth.md](DOCS/bluetooth.md) |
+| 蓝牙串口 | `Communication/Bluetooth/`,帧层 bluetooth.c + Payload 协议层 bluetooth_protocol.c,USART6,帧长 17B(包体 14B,消息类型化),见 [DOCS/bluetooth.md](DOCS/bluetooth.md) |
 
 ## 目录结构
 

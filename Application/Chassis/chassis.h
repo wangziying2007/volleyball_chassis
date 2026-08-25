@@ -35,6 +35,11 @@ extern "C"
 #define CHASSIS_HALF_LENGTH_X_MM 187.5f   /* 轮距纵向半长,mm(四轮中心矩形 X 向一半) */
 #define CHASSIS_HALF_LENGTH_Y_MM 187.5f   /* 轮距横向半长,mm(Y 向一半) */
 #define CHASSIS_L_MM (CHASSIS_HALF_LENGTH_X_MM + CHASSIS_HALF_LENGTH_Y_MM) /* 等效回转半径 L */
+#define CHASSIS_VX_MAX_MM_S   1800.0f   /* vx 限幅,mm/s */
+#define CHASSIS_VY_MAX_MM_S   1800.0f   /* vy 限幅,mm/s */
+#define CHASSIS_WZ_MAX_DEG_S  360.0f    /* wz 限幅,°/s */
+#define CHASSIS_MODE_FAST_SCALE 1.0f    /* 快速档缩放(线+角速度同比) */
+#define CHASSIS_MODE_SLOW_SCALE 0.25f   /* 慢速档缩放 */
 
 /* 轮子索引(右手系象限顺序,见文件头注释) */
 #define CHASSIS_WHEEL_FL 0
@@ -46,10 +51,11 @@ typedef struct
 {
     Wheel_t wheels[4]; /* FL / FR / RR / RL(象限顺序) */
     bool    enable; // 映射两个bool字段
-    bool    reset;    
+    bool    reset;
+    bool    fast;       /* 当前模式档:1=快速 / 0=慢速 */
     float   vx;        /* 目标纵向速度,mm/s */
     float   vy;        /* 目标横向速度,mm/s */
-    float   wz;        /* 目标自转角速度,rad/s */
+    float   wz;        /* 目标自转角速度,deg/s */
 } Chassis_t;
 
 /* Init 自动绑定 Zmotor[0..3](顺序见文件头);如接线不同可再用 BindWheel 覆盖 */
@@ -60,6 +66,9 @@ void Chassis_SetWheelDirection(Chassis_t *chassis, uint8_t index, float directio
 void Chassis_SetVelocity(Chassis_t *chassis, float vx, float vy, float wz);
 void Chassis_Enable(Chassis_t *chassis);
 void Chassis_Disable(Chassis_t *chassis);
+void Chassis_SetMode(Chassis_t *chassis, bool fast);   /* fast:1=快速 / 0=慢速 */
+bool Chassis_IsEnabled(const Chassis_t *chassis);
+bool Chassis_GetFast(const Chassis_t *chassis);
 void Chassis_Reset(Chassis_t *chassis);
 void Chassis_Update(Chassis_t *chassis);
 

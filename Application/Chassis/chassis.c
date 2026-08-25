@@ -28,6 +28,7 @@ void Chassis_Init(Chassis_t *chassis)
     }
     chassis->enable = false;
     chassis->reset = false;
+    chassis->fast = true; /* 默认快速档(慢速为辅助微调用) */
     chassis->vx = 0.0f;
     chassis->vy = 0.0f;
     chassis->wz = 0.0f;
@@ -52,11 +53,21 @@ void Chassis_SetWheelDirection(Chassis_t *chassis, uint8_t index, float directio
     chassis->wheels[index].direction = direction;
 }
 
+/* 入参为操作手原始 vx / vy / wz(mm/s、°/s),内部先按当前模式档缩放、再限幅。
+   换档立即生效、无平滑(人工闭环要跟手);不做加减速斜坡。 */
 void Chassis_SetVelocity(Chassis_t *chassis, float vx, float vy, float wz)
 {
-    vx = Clamp(vx, -1800, 1800);
-    vy = Clamp(vy, -1800, 1800);
-    wz = Clamp(wz, -360, 360);
+    float scale;
+
+    if (chassis == NULL)
+    {
+        return;
+    }
+
+    scale = chassis->fast ? CHASSIS_MODE_FAST_SCALE : CHASSIS_MODE_SLOW_SCALE;
+    vx = Clamp(vx * scale, -CHASSIS_VX_MAX_MM_S, CHASSIS_VX_MAX_MM_S);
+    vy = Clamp(vy * scale, -CHASSIS_VY_MAX_MM_S, CHASSIS_VY_MAX_MM_S);
+    wz = Clamp(wz * scale, -CHASSIS_WZ_MAX_DEG_S, CHASSIS_WZ_MAX_DEG_S);
 
     chassis->vx = vx; /* mm/s */
     chassis->vy = vy; /* mm/s */
@@ -71,6 +82,25 @@ void Chassis_Enable(Chassis_t *chassis)
 void Chassis_Disable(Chassis_t *chassis)
 {
     chassis->enable = false;
+}
+
+/* 设置模式档:fast = 1 快速 / 0 慢速(仅改缩放,不影响使能状态) */
+void Chassis_SetMode(Chassis_t *chassis, bool fast)
+{
+    if (chassis != NULL)
+    {
+        chassis->fast = fast;
+    }
+}
+
+bool Chassis_IsEnabled(const Chassis_t *chassis)
+{
+    return (chassis != NULL) && chassis->enable;
+}
+
+bool Chassis_GetFast(const Chassis_t *chassis)
+{
+    return (chassis != NULL) && chassis->fast;
 }
 
 /* 清空速度目标,并使所有轮子立即停止 */

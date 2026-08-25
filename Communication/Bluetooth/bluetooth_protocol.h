@@ -16,7 +16,9 @@
  * 提供逐字段的读写访问函数;业务层唯一要做的是写解析函数,
  * 把每个字段赋给业务结构体成员,不碰位移/按位与/字节偏移。
  *
- * 布局(编译期固定,类型按协议顺序分组,每个方向各自独立):
+ * 布局(编译期固定,类型按协议顺序分组,每个方向各自独立)。
+ * 这里描述的是**消息体 body**(不含首字节 type;服务层把 body 指针 =
+ * payload + BT_PROTO_TYPE_BYTES 传给本层访问函数):
  *   [0, BOOL_BYTES)         : bool 打包区(LSB 在前,第 1 个 bool 在 bit0)
  *   [BOOL_BYTES, +U8_NUM)   : u8
  *   [.., +2*U16_NUM)        : u16(小端)
@@ -24,11 +26,11 @@
  *   [.., +4*FLOAT_NUM)      : float(小端)
  *
  * 某方向某类型数量为 0 时,该方向该类型访问函数被 #if 取消编译,不占代码。
- * 调用方保证:payload 长度 >= 对应方向的 BT_PROTO_<RX|TX>_PAYLOAD_SIZE,
+ * 调用方保证:body 指针长度 >= 对应方向的 BT_PROTO_<RX|TX>_PAYLOAD_SIZE,
  * idx 在数量范围内。
  *
- * 帧层缓冲(BluetoothFrame_t.payload)要同时装得下收发两向,取两者较大值:
- * BT_PROTO_PAYLOAD_MAX。
+ * 帧层缓冲(BluetoothFrame_t.payload)要同时装得下收发两向(type+body),
+ * 取两者较大值:BT_PROTO_PAYLOAD_MAX。
  */
 #ifndef BLUETOOTH_PROTOCOL_H
 #define BLUETOOTH_PROTOCOL_H
@@ -48,11 +50,11 @@ extern "C" {
 /*   TX = 发送(状态,只写)→ BT_PROTO_TX_*_NUM。                       */
 /* 按上位机约定填写每种字段数量(0 = 该类型不出现)。                     */
 /*                                                                      */
-/* 底盘分支(27omniChassis)字段约定(见 comm_config.h 顶部说明):           */
-/*   RX 命令(BT_Cmd_t):   bool[0]=enable 使能, [1]=disable 失能,         */
-/*                        [2]=reset 板子复位;                           */
-/*                        float[0]=vx(mm/s), [1]=vy(mm/s), [2]=wz(deg/s) */
-/*   TX 状态(BT_Status_t): 见 comm_config.h(保持 main 通用状态布局)。     */
+/* 底盘分支字段约定(见 comm_config.h 顶部说明):                           */
+/*   RX 命令(BT_Cmd_t):   bool[0]=enable 使能, [1]=disable 失能,           */
+/*                        [2]=reset 板子复位, [3]=fast 模式档;             */
+/*                        float[0]=vx(mm/s), [1]=vy(mm/s), [2]=wz(°/s)     */
+/*   TX 状态(BT_Status_t): bool[0]=enable 使能, [1]=fast 模式档。           */
 /* ------------------------------------------------------------------ */
 #include "comm_config.h"
 
@@ -76,11 +78,26 @@ extern "C" {
 #define BT_PROTO_TX_FLOAT_OFFSET (BT_PROTO_TX_U32_OFFSET + 4U * BT_PROTO_TX_U32_NUM)
 #define BT_PROTO_TX_PAYLOAD_SIZE (BT_PROTO_TX_FLOAT_OFFSET + 4U * BT_PROTO_TX_FLOAT_NUM)
 
-/* 帧层缓冲尺寸:取收发两向 payload 的较大值,保证一帧能装下任一方向 */
+/* ------------------------------------------------------------------ */
+/* 消息类型化框架(首字节 type + 消息体 body)                             */
+/* ------------------------------------------------------------------ */
+/* type 字节占用数:payload 首字节 = 消息类型,其后为该类型的消息体(body)。 */
+#define BT_PROTO_TYPE_BYTES 1U
+
+/* 消息类型码(收发各一套;type 数值相同但方向不同时语义不同) */
+/* RX 命令(上位机 → 板子) */
+#define BT_MSG_CHASSIS_CMD    0x01U   /* 底盘命令,本期实现 */
+#define BT_MSG_MECH_CMD       0x02U   /* 机构命令,预留(机构从板协议定后定义 body) */
+/* TX 状态(板子 → 上位机) */
+#define BT_MSG_CHASSIS_STATUS 0x01U   /* 底盘状态,本期实现 */
+#define BT_MSG_MECH_STATUS    0x02U   /* 机构状态,预留 */
+
+/* 帧层缓冲尺寸 = type 字节 + 收发两向 body 较大值,保证一帧能装下任一方向。
+   (BT_PROTO_RX/TX_PAYLOAD_SIZE 是 body 大小,不含 type) */
 #if BT_PROTO_RX_PAYLOAD_SIZE > BT_PROTO_TX_PAYLOAD_SIZE
-#define BT_PROTO_PAYLOAD_MAX  BT_PROTO_RX_PAYLOAD_SIZE
+#define BT_PROTO_PAYLOAD_MAX  (BT_PROTO_TYPE_BYTES + BT_PROTO_RX_PAYLOAD_SIZE)
 #else
-#define BT_PROTO_PAYLOAD_MAX  BT_PROTO_TX_PAYLOAD_SIZE
+#define BT_PROTO_PAYLOAD_MAX  (BT_PROTO_TYPE_BYTES + BT_PROTO_TX_PAYLOAD_SIZE)
 #endif
 
 /* ------------------------------------------------------------------ */

@@ -26,10 +26,11 @@ static void BT_Cmd_Parse(const uint8_t *payload, BT_Cmd_t *cmd)
     uint8_t bool_cnt = 0U;
     uint8_t f32_cnt  = 0U;
     /* 底盘命令字段(顺序须与 comm_config.h 的 BT_PROTO_RX_* 一致):
-       bool[0..2] = enable / disable / reset,float[0..2] = vx / vy / wz */
+       bool[0..3] = enable / disable / reset / fast,float[0..2] = vx / vy / wz */
     cmd->enable  = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->disable = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->reset   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->fast    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->vx      = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
     cmd->vy      = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
     cmd->wz      = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
@@ -38,8 +39,8 @@ static void BT_Cmd_Parse(const uint8_t *payload, BT_Cmd_t *cmd)
 /* 发送:状态帧打包(TX) */
 static void BT_Status_Pack(uint8_t *payload, const BT_Status_t *status)
 {
-    (void)status; /* 当前 BT_Status_t 为空,不打包任何字段 */
-    (void)payload;
+    BT_Proto_TX_WriteBool(payload, 0, status->enable);
+    BT_Proto_TX_WriteBool(payload, 1, status->fast);
 }
 
 /* ================================================================== */
@@ -47,10 +48,13 @@ static void BT_Status_Pack(uint8_t *payload, const BT_Status_t *status)
 /* ================================================================== */
 bool BT_Serv_Status_Send(const BT_Status_t *status)
 {
-    uint8_t payload[BT_PROTO_TX_PAYLOAD_SIZE];
+    uint8_t payload[BT_PROTO_PAYLOAD_MAX];
 
-    BT_Status_Pack(payload, status);
-    return Bluetooth_Send(payload, BT_PROTO_TX_PAYLOAD_SIZE);
+    /* 首字节 = 消息类型,body 从 +1 起(服务层只写 type,body 由 BT_Status_Pack 填) */
+    payload[0] = BT_MSG_CHASSIS_STATUS;
+    BT_Status_Pack(&payload[BT_PROTO_TYPE_BYTES], status);
+    /* 发送 type + body(共 2 字节),帧层自动补零到 BT_PROTO_PAYLOAD_MAX */
+    return Bluetooth_Send(payload, BT_PROTO_TYPE_BYTES + BT_PROTO_TX_PAYLOAD_SIZE);
 }
 
 bool BT_Serv_Cmd_Receive(BT_Cmd_t *cmd, uint32_t timeout_ms)
@@ -62,6 +66,12 @@ bool BT_Serv_Cmd_Receive(BT_Cmd_t *cmd, uint32_t timeout_ms)
         return false;
     }
 
-    BT_Cmd_Parse(frame.payload, cmd);
+    /* 按消息类型分发:只处理底盘命令(type=0x01),其余预留 type 直接丢弃 */
+    if (frame.payload[0] != BT_MSG_CHASSIS_CMD)
+    {
+        return false;
+    }
+    /* body 指针 = payload + type 字节 */
+    BT_Cmd_Parse(&frame.payload[BT_PROTO_TYPE_BYTES], cmd);
     return true;
 }

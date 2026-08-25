@@ -22,9 +22,9 @@ extern "C"
 /* ------------------------------------------------------------------ */
 
 /* ---- RX(接收)方向 ---- */
-/* 底盘(27omniChassis)命令字段:bool[3]=enable/disable/reset,float[3]=vx/vy/wz */
+/* 底盘命令字段:bool[4]=enable/disable/reset/fast,float[3]=vx/vy/wz */
 #ifndef BT_PROTO_RX_BOOL_NUM
-#define BT_PROTO_RX_BOOL_NUM   3U   /* bool 数量:enable / disable / reset */
+#define BT_PROTO_RX_BOOL_NUM   4U   /* bool 数量:enable / disable / reset / fast */
 #endif
 #ifndef BT_PROTO_RX_U8_NUM
 #define BT_PROTO_RX_U8_NUM     0U   /* u8 数量 */
@@ -40,20 +40,21 @@ extern "C"
 #endif
 
 /* ---- TX(发送)方向 ---- */
+/* 底盘状态字段:bool[2]=enable/fast(最小化回传) */
 #ifndef BT_PROTO_TX_BOOL_NUM
-#define BT_PROTO_TX_BOOL_NUM   7U   /* bool 数量 */
+#define BT_PROTO_TX_BOOL_NUM   2U   /* bool 数量:enable / fast */
 #endif
 #ifndef BT_PROTO_TX_U8_NUM
 #define BT_PROTO_TX_U8_NUM     0U   /* u8 数量 */
 #endif
 #ifndef BT_PROTO_TX_U16_NUM
-#define BT_PROTO_TX_U16_NUM    2U   /* u16 数量 */
+#define BT_PROTO_TX_U16_NUM    0U   /* u16 数量 */
 #endif
 #ifndef BT_PROTO_TX_U32_NUM
 #define BT_PROTO_TX_U32_NUM    0U   /* u32 数量 */
 #endif
 #ifndef BT_PROTO_TX_FLOAT_NUM
-#define BT_PROTO_TX_FLOAT_NUM  1U   /* float 数量 */
+#define BT_PROTO_TX_FLOAT_NUM  0U   /* float 数量 */
 #endif
 
 #ifdef __cplusplus

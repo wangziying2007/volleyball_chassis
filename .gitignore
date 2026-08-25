@@ -1,6 +1,7 @@
 # ---- IDE / 调试配置(本地,不入库) ----
 .vscode/
 .claude/
+DOCS/
 
 # ---- Keil MDK:构建输出与临时文件 ----
 # 整个输出目录都是编译产物(.o/.d/.axf/.hex/.map/.htm/.lnp/.dep/.sct)

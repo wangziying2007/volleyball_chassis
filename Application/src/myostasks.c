@@ -62,7 +62,6 @@ void Chassis_Task(void *argument)
     Chassis_Init(&chassis);
     for (;;)
     {
-        // (void)BT_Serv_Status_Send(&status);
         BT_Cmd_t cmd;
         if (BT_Serv_Cmd_Receive(&cmd, 0))
         {
@@ -74,6 +73,9 @@ void Chassis_Task(void *argument)
             }
             else
             {
+                /* 模式档切换:1=快速 / 0=慢速(蓝牙触发,无论是否使能都先落档,立即生效) */
+                Chassis_SetMode(&chassis, cmd.fast);
+
                 if (cmd.disable)
                 {
                     Chassis_Disable(&chassis);
@@ -86,13 +88,28 @@ void Chassis_Task(void *argument)
                     for (uint8_t i = 0; i < 4U; i++)
                         Zmotor[i].mode = Zdrive_Speed;
                 }
-                /* 每帧更新目标速度(使能后连续可调) */
+                /* 每帧更新目标速度(使能后连续可调;内部先按当前档缩放、再限幅) */
                 Chassis_SetVelocity(&chassis, cmd.vx, cmd.vy, cmd.wz);
             }
         }
+
+#if BT_SERV_ENABLE
+        /* 周期回传最小状态(enable + fast),每 BT_SERV_STATUS_PERIOD_MS 一次 */
+        TickType_t now = xTaskGetTickCount();
+        static TickType_t last_status_tick = 0U;
+        if ((now - last_status_tick) >= pdMS_TO_TICKS(BT_SERV_STATUS_PERIOD_MS))
+        {
+            BT_Status_t status;
+            status.enable = Chassis_IsEnabled(&chassis);
+            status.fast   = Chassis_GetFast(&chassis);
+            BT_Serv_Status_Send(&status);
+            last_status_tick = now;
+        }
+#endif
+
         /* 周期解算:使能时按 vx/vy/wz 算轮速写入 Zmotor[].valSetNow.speed_rpm,
            失能时全轮置 0;实际 CAN 发送由 TIM2 里 ZdriveFunc() 完成 */
         Chassis_Update(&chassis);
-        vTaskDelayUntil(&xLastWakeTime, xFrequency); 
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
