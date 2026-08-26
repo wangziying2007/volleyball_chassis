@@ -3,7 +3,7 @@
 <title>Static Call Graph - [27RC_Proj_Template\27RC_Proj_Template.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image 27RC_Proj_Template\27RC_Proj_Template.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6160001: Last Updated: Tue Aug 25 21:18:42 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6160001: Last Updated: Wed Aug 26 09:26:56 2026
 <BR><P>
 <H3>Maximum Stack Usage =        632 bytes + Unknown(Functions without stacksize, Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -800,7 +800,7 @@ Global Symbols
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> freertos.o(.text.MX_FREERTOS_Init)
 </UL>
-<P><STRONG><a name="[c4]"></a>BT_Serv_Cmd_Receive</STRONG> (Thumb, 72 bytes, Stack size 40 bytes, bluetooth_serv.o(.text.BT_Serv_Cmd_Receive))
+<P><STRONG><a name="[c4]"></a>BT_Serv_Cmd_Receive</STRONG> (Thumb, 52 bytes, Stack size 40 bytes, bluetooth_serv.o(.text.BT_Serv_Cmd_Receive))
 <BR><BR>[Stack]<UL><LI>Max Depth = 216<LI>Call Chain = BT_Serv_Cmd_Receive &rArr; Bluetooth_Receive &rArr; xQueueReceive &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
 </UL>
 <BR>[Calls]<UL><LI><a href="#[c5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Bluetooth_Receive
@@ -809,8 +809,8 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[9e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_Task
 </UL>
 
-<P><STRONG><a name="[c6]"></a>BT_Serv_Status_Send</STRONG> (Thumb, 38 bytes, Stack size 32 bytes, bluetooth_serv.o(.text.BT_Serv_Status_Send))
-<BR><BR>[Stack]<UL><LI>Max Depth = 248<LI>Call Chain = BT_Serv_Status_Send &rArr; Bluetooth_Send &rArr; xQueueGenericSend &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
+<P><STRONG><a name="[c6]"></a>BT_Serv_Status_Send</STRONG> (Thumb, 30 bytes, Stack size 24 bytes, bluetooth_serv.o(.text.BT_Serv_Status_Send))
+<BR><BR>[Stack]<UL><LI>Max Depth = 240<LI>Call Chain = BT_Serv_Status_Send &rArr; Bluetooth_Send &rArr; xQueueGenericSend &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
 </UL>
 <BR>[Calls]<UL><LI><a href="#[c8]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Bluetooth_Send
 <LI><a href="#[c7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;BT_Status_Pack
@@ -1043,8 +1043,8 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[9e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_Task
 </UL>
 
-<P><STRONG><a name="[9e]"></a>Chassis_Task</STRONG> (Thumb, 372 bytes, Stack size 56 bytes, myostasks.o(.text.Chassis_Task))
-<BR><BR>[Stack]<UL><LI>Max Depth = 304<LI>Call Chain = Chassis_Task &rArr; BT_Serv_Status_Send &rArr; Bluetooth_Send &rArr; xQueueGenericSend &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
+<P><STRONG><a name="[9e]"></a>Chassis_Task</STRONG> (Thumb, 480 bytes, Stack size 56 bytes, myostasks.o(.text.Chassis_Task))
+<BR><BR>[Stack]<UL><LI>Max Depth = 296<LI>Call Chain = Chassis_Task &rArr; BT_Serv_Status_Send &rArr; Bluetooth_Send &rArr; xQueueGenericSend &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
 </UL>
 <BR>[Calls]<UL><LI><a href="#[fe]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_Update
 <LI><a href="#[f5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_SetVelocity
@@ -3797,7 +3797,7 @@ Local Symbols
 <BR>[Called By]<UL><LI><a href="#[f5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Chassis_SetVelocity
 </UL>
 
-<P><STRONG><a name="[d7]"></a>Bluetooth_BuildTxFrame</STRONG> (Thumb, 114 bytes, Stack size 12 bytes, bluetooth.o(.text.Bluetooth_BuildTxFrame))
+<P><STRONG><a name="[d7]"></a>Bluetooth_BuildTxFrame</STRONG> (Thumb, 112 bytes, Stack size 12 bytes, bluetooth.o(.text.Bluetooth_BuildTxFrame))
 <BR><BR>[Stack]<UL><LI>Max Depth = 12<LI>Call Chain = Bluetooth_BuildTxFrame
 </UL>
 <BR>[Called By]<UL><LI><a href="#[97]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Bluetooth_TxTask
@@ -3809,7 +3809,7 @@ Local Symbols
 <BR>[Called By]<UL><LI><a href="#[d2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Bluetooth_RxByte
 </UL>
 
-<P><STRONG><a name="[cf]"></a>Bluetooth_PushRxFrame</STRONG> (Thumb, 64 bytes, Stack size 32 bytes, bluetooth.o(.text.Bluetooth_PushRxFrame))
+<P><STRONG><a name="[cf]"></a>Bluetooth_PushRxFrame</STRONG> (Thumb, 62 bytes, Stack size 32 bytes, bluetooth.o(.text.Bluetooth_PushRxFrame))
 <BR><BR>[Stack]<UL><LI>Max Depth = 200<LI>Call Chain = Bluetooth_PushRxFrame &rArr; xQueueGenericSend &rArr; xTaskResumeAll &rArr; xTaskIncrementTick
 </UL>
 <BR>[Calls]<UL><LI><a href="#[d0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;xQueueGenericSend

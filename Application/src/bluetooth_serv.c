@@ -48,13 +48,10 @@ static void BT_Status_Pack(uint8_t *payload, const BT_Status_t *status)
 /* ================================================================== */
 bool BT_Serv_Status_Send(const BT_Status_t *status)
 {
-    uint8_t payload[BT_PROTO_PAYLOAD_MAX];
+    uint8_t payload[BT_PROTO_TX_PAYLOAD_SIZE];
 
-    /* 首字节 = 消息类型,body 从 +1 起(服务层只写 type,body 由 BT_Status_Pack 填) */
-    payload[0] = BT_MSG_CHASSIS_STATUS;
-    BT_Status_Pack(&payload[BT_PROTO_TYPE_BYTES], status);
-    /* 发送 type + body(共 2 字节),帧层自动补零到 BT_PROTO_PAYLOAD_MAX */
-    return Bluetooth_Send(payload, BT_PROTO_TYPE_BYTES + BT_PROTO_TX_PAYLOAD_SIZE);
+    BT_Status_Pack(payload, status);
+    return Bluetooth_Send(payload, BT_PROTO_TX_PAYLOAD_SIZE);
 }
 
 bool BT_Serv_Cmd_Receive(BT_Cmd_t *cmd, uint32_t timeout_ms)
@@ -66,12 +63,6 @@ bool BT_Serv_Cmd_Receive(BT_Cmd_t *cmd, uint32_t timeout_ms)
         return false;
     }
 
-    /* 按消息类型分发:只处理底盘命令(type=0x01),其余预留 type 直接丢弃 */
-    if (frame.payload[0] != BT_MSG_CHASSIS_CMD)
-    {
-        return false;
-    }
-    /* body 指针 = payload + type 字节 */
-    BT_Cmd_Parse(&frame.payload[BT_PROTO_TYPE_BYTES], cmd);
+    BT_Cmd_Parse(frame.payload, cmd);
     return true;
 }

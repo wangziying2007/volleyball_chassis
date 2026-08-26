@@ -9,8 +9,6 @@
 和上位机互发数据。串口数据是“流”,没有边界;我们约定一种带包头包尾和校验的
 **帧格式**,把流切成一条条完整的消息。
 
-蓝牙帧已**类型化**:payload 的第 0 字节是**消息类型(type)**,其余是**消息体(body)**;
-业务层按 type 解析 body,模块本身只负责成帧/收帧,不关心内容(见第 6 节)。
 
 业务层只需要:
 
@@ -72,18 +70,18 @@ Bluetooth_Receive(&frame, 超时ms);   // 收一条消息
 - 有包长字段:`包长 + 包体`;
 - 无包长字段:`包体` 本身。
 
-示例(包体 N = 14,CRC16 / SUM8):
+示例(包体 N = 13,CRC16 / SUM8):
 
 | 包头 | 包长 | 包尾 | 帧长(CRC16) | 帧长(SUM8) |
 | --- | --- | --- | --- | --- |
-| 双(2) | 无 | 单(1) | 2+14+2+1 = 19 | 18 |
-| 双(2) | 有 | 单(1) | 2+1+14+2+1 = 20 | 19 |
-| 单(1) | 无 | 双(2) | 1+14+2+2 = 19 | 18 |
-| 单(1) | 有 | 双(2) | 1+1+14+2+2 = 20 | 19 |
-| **单(1)** | 无 | **单(1)** | 1+14+2+1 = 18 | **1+14+1+1 = 17** |
+| 双(2) | 无 | 单(1) | 2+13+2+1 = 18 | 17 |
+| 双(2) | 有 | 单(1) | 2+1+13+2+1 = 19 | 18 |
+| 单(1) | 无 | 双(2) | 1+13+2+2 = 18 | 17 |
+| 单(1) | 有 | 双(2) | 1+1+13+2+2 = 19 | 18 |
+| **单(1)** | 无 | **单(1)** | 1+13+2+1 = 17 | **1+13+1+1 = 16** |
 
 最后一行是本工程当前配置(单包头 `0xA5`、无包长字段、单包尾 `0x5A`、SUM8),
-**整帧固定 17 字节 / 包体 14 字节**。
+**整帧固定 16 字节 / 包体 13 字节**。
 
 补充说明:
 
@@ -146,7 +144,7 @@ if (Bluetooth_Receive(&frame, 100)) {        // 等 100ms,没消息返回 false
   RX 方向只提供 `BT_Proto_RX_Read*`(解析命令只读),TX 方向只提供 `BT_Proto_TX_Write*`(打包状态只写);
 - 每个方向布局各自独立:`bool` 打包区(LSB 在前,第 1 个 bool 在 bit0)→ `u8` → `u16`(小端)→
   `u32`(小端)→ `float`(小端),RX/TX 各有一个 `BT_PROTO_RX_PAYLOAD_SIZE` / `BT_PROTO_TX_PAYLOAD_SIZE` 定长;
-  帧层缓冲用 **type 字节 + 两者较大值** `BT_PROTO_PAYLOAD_MAX`;
+  帧层缓冲用两者较大值 `BT_PROTO_PAYLOAD_MAX`;
 - 业务层**唯一要做的是写解析函数**,把每个字段赋给业务结构体成员,
   不碰位移/按位与/字节偏移/`sizeof`/`memcpy`:
 
@@ -179,26 +177,13 @@ void MyMsg_Pack(uint8_t *payload, const MyMsg_t *msg) { ... }
 把 `bluetooth_serv.h` 里 `BT_SERV_ENABLE` 改成 1,`Chassis_Task` 收命令并回传状态,
 用于验证整条链路。换真实协议时:改对应方向宏数量 → 改对应业务结构体 → 改 Pack/Parse 函数。
 
-> 省带宽:帧层默认 `BT_PAYLOAD_LENGTH = 0`(整帧固定 17 字节,包体 14 字节 = `BT_PROTO_PAYLOAD_MAX`)。
+> 省带宽:帧层默认 `BT_PAYLOAD_LENGTH = 0`(整帧固定 16 字节,包体 13 字节 = `BT_PROTO_PAYLOAD_MAX`)。
 > 帧长 = 包头(1) + 包体(`BT_PROTO_PAYLOAD_MAX`) + 校验(1) + 包尾(1) = `BT_PROTO_PAYLOAD_MAX + 3`。
 > 改包体大小:改 `Config/comm_config.h` 的收发方向字段数量宏,`BT_PROTO_PAYLOAD_MAX` 随之变化,收发两边一起改。
 
-### 6.1 消息类型化框架
+### 6.1 底盘命令/状态字段表
 
-payload 的第 0 字节是**消息类型(type)**,之后是**消息体(body)**,即 body 从 `payload[1]` 开始
-(`type;body=payload+1`)。整帧 payload 定长 `BT_PROTO_PAYLOAD_MAX` = **14 字节**,type + body 用不完的部分补 0。
-
-收发各用一类 type 常量标识一种消息;扩展新消息只需在业务层把新 type + 新 body 结构加进 Parse 函数
-(用一个 `BT_MSG_*` 宏定义 type),**不必改动帧层/框架**——type 判别与 body 解析全部发生在业务层。
-
-| type | 方向 | 说明 |
-| --- | --- | --- |
-| `BT_MSG_CHASSIS_CMD`(0x01) | 上位机 → 板子(RX) | 底盘命令 CHASSIS_CMD,body 见 6.2 |
-| `BT_MSG_CHASSIS_STATUS`(0x01) | 板子 → 上位机(TX) | 底盘状态 CHASSIS_STATUS,body 见 6.2 |
-
-### 6.2 底盘命令/状态字段表
-
-**RX 命令 CHASSIS_CMD(type=0x01)**:body = 13 字节 = bool 打包区 1 字节 + 3 个 float 12 字节。
+**RX 命令(上位机 → 板子)**:body = 13 字节 = bool 打包区 1 字节 + 3 个 float 12 字节。
 
 | body 偏移 | 字段 | 类型 | 说明 |
 | --- | --- | --- | --- |
@@ -212,19 +197,22 @@ payload 的第 0 字节是**消息类型(type)**,之后是**消息体(body)**,�
 
 4 个 bool 打包进第 0 字节(LSB 在前):`bool[0]=enable / [1]=disable / [2]=reset / [3]=fast`。
 
-**TX 状态 CHASSIS_STATUS(type=0x01)**:body = 1 字节 = bool 打包区(2 bit,LSB 在前);其余 body 字节补 0。
+**TX 状态(板子 → 上位机)**:body = 1 字节 = bool 打包区(2 bit,LSB 在前);其余 body 字节补 0。
 
 | body 偏移 | 字段 | 类型 | 说明 |
 | --- | --- | --- | --- |
 | 0 | bool[0] | 1 bit | enable(当前使能状态) |
 | .. | bool[1] | 1 bit | fast(当前快速模式) |
 
+> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 13 字节、TX = 1 字节),
+> 收发两向取较大者得 `BT_PROTO_PAYLOAD_MAX` = 13 → 整帧 **16 字节**。
+
 ## 7. 常见问题
 
 - **收不到**:先看蓝牙模块波特率(默认 115200)和上位机是否一致;再用串口助手
   直接看 UART6_RxBuffer 有没有原始数据。
 - **收到但解析失败**:用 VOFA+ 或串口助手看原始字节,检查包头是否被上位机
-  转成了字符串/加了换行;再核对帧格式是否与 BT_PAYLOAD_LENGTH 一致(0 时无包长字段,整帧 17 字节;N 时包头后的包长字节 = N)。
+  转成了字符串/加了换行;再核对帧格式是否与 BT_PAYLOAD_LENGTH 一致(0 时无包长字段,整帧 16 字节;N 时包头后的包长字节 = N)。
 - **发送队列满**(Bluetooth_Send 返回 false):把 BT_TX_QUEUE_SIZE 调大,
   或检查 TX 任务是不是卡在 DMA 上(发送完成中断没清 s_tx_busy)。
 - **DMA 相关报错**:确认缓冲在 D2 段(__RAM_D2_),发送前刷 D-Cache

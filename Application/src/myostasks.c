@@ -56,15 +56,19 @@ void Chassis_Task(void *argument)
     static Chassis_t chassis;
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(5); 
+    const TickType_t xFrequency = pdMS_TO_TICKS(5);
+    TickType_t last_cmd_tick = xTaskGetTickCount(); /* 最近一次收到底盘命令的时刻,用于掉线超时急停 */
 
     /* 自动绑定 Zmotor[0..3],顺序 = 右手系象限顺序(见 chassis.h) */
     Chassis_Init(&chassis);
     for (;;)
     {
+        TickType_t now = xTaskGetTickCount();
+
         BT_Cmd_t cmd;
         if (BT_Serv_Cmd_Receive(&cmd, 0))
         {
+            last_cmd_tick = now;
             if (cmd.reset)
             {
                 /* reset 按钮 → 整板复位 */
@@ -93,9 +97,18 @@ void Chassis_Task(void *argument)
             }
         }
 
+        /* 蓝牙掉线超时急停:使能状态下若超过 BT_CMD_TIMEOUT_MS 未收到任何新命令,
+           判定链路断开 → 底盘立即停止(全轮 Disable)。收到新命令后由 enable 分支恢复。 */
+        if (Chassis_IsEnabled(&chassis)
+            && ((now - last_cmd_tick) >= pdMS_TO_TICKS(BT_CMD_TIMEOUT_MS)))
+        {
+            Chassis_Disable(&chassis);
+            for (uint8_t i = 0; i < 4U; i++)
+                Zmotor[i].mode = Zdrive_Disable;
+        }
+
 #if BT_SERV_ENABLE
         /* 周期回传最小状态(enable + fast),每 BT_SERV_STATUS_PERIOD_MS 一次 */
-        TickType_t now = xTaskGetTickCount();
         static TickType_t last_status_tick = 0U;
         if ((now - last_status_tick) >= pdMS_TO_TICKS(BT_SERV_STATUS_PERIOD_MS))
         {

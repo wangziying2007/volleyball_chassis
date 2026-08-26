@@ -168,9 +168,6 @@ main()
   逐字段访问函数;收发两方向字段数量在 `Config/comm_config.h` 配置,RX 只读
   `BT_Proto_RX_Read*`、TX 只写 `BT_Proto_TX_Write*`)→ 业务层
   (`Bluetooth_Send()` / `Bluetooth_Receive()` + 自己的解析/打包函数);
-- 消息已类型化,线上帧定长 **17 字节 / 包体 14 字节**:payload 首字节为 type、
-  body 从 payload[1] 开始(`BT_PROTO_PAYLOAD_MAX` = 14);扩展新消息只需加一个 body 结构
-  (`BT_MSG_*` 宏),不动帧层/框架;
 - 并发原语:数据用基础 FreeRTOS Queue(`xQueueCreate/Send/SendFromISR/Receive`),
   中断→接收任务的唤醒用计数信号量(`xSemaphoreCreateCounting/GiveFromISR/Take`);
   收发任务在模块内部 `Bluetooth_Init()` 里创建(main.c 启动时调用);
