@@ -25,15 +25,28 @@ static void BT_Cmd_Parse(const uint8_t *payload, BT_Cmd_t *cmd)
 {
     uint8_t bool_cnt = 0U;
     uint8_t f32_cnt  = 0U;
-    /* 底盘命令字段(顺序须与 comm_config.h 的 BT_PROTO_RX_* 一致):
-       bool[0..3] = enable / disable / reset / fast,float[0..2] = vx / vy / wz */
-    cmd->enable  = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->disable = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->reset   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->fast    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->vx      = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
-    cmd->vy      = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
-    cmd->wz      = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
+    /* 命令字段(顺序须与 comm_config.h 的 BT_PROTO_RX_* 一致):
+       bool[0..16] = enable/disable/reset/fast + 机构 13 字段,float[0..2] = vx/vy/wz */
+    cmd->enable         = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->disable        = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->reset          = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->fast           = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->mech_enable    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->mech_disable   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->mech_reset     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->left_work1     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->left_work2     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->right_work1    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->right_work2    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->left_pulldown  = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->right_pulldown = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->grip_open      = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->grip_close     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->grip_release   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->grip_zero      = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->vx             = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
+    cmd->vy             = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
+    cmd->wz             = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
 }
 
 /* 发送:状态帧打包(TX) */
@@ -41,6 +54,7 @@ static void BT_Status_Pack(uint8_t *payload, const BT_Status_t *status)
 {
     BT_Proto_TX_WriteBool(payload, 0, status->enable);
     BT_Proto_TX_WriteBool(payload, 1, status->fast);
+    BT_Proto_TX_WriteU8(payload, 0, status->mech_status);
 }
 
 /* ================================================================== */

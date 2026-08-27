@@ -22,15 +22,17 @@ extern "C"
 /* ------------------------------------------------------------------ */
 
 /* ---- RX(接收)方向 ---- */
-/* 底盘命令字段:bool[4]=enable/disable/reset/fast,float[3]=vx/vy/wz */
+/* 命令字段:bool[17]=底盘(enable/disable/reset/fast) + 机构(mech_enable/mech_disable/
+   mech_reset/left_work1/left_work2/right_work1/right_work2/left_pulldown/right_pulldown/
+   grip_open/grip_close/grip_release/grip_zero);float[3]=vx/vy/wz */
 #ifndef BT_PROTO_RX_BOOL_NUM
-#define BT_PROTO_RX_BOOL_NUM   4U   /* bool 数量:enable / disable / reset / fast */
+#define BT_PROTO_RX_BOOL_NUM   17U  /* bool 数量:底盘 4 + 机构 13 */
 #endif
 #ifndef BT_PROTO_RX_U8_NUM
 #define BT_PROTO_RX_U8_NUM     0U   /* u8 数量 */
 #endif
 #ifndef BT_PROTO_RX_U16_NUM
-#define BT_PROTO_RX_U16_NUM    0U   /* u16 数量(底盘命令不使用) */
+#define BT_PROTO_RX_U16_NUM    0U   /* u16 数量(命令不使用) */
 #endif
 #ifndef BT_PROTO_RX_U32_NUM
 #define BT_PROTO_RX_U32_NUM    0U   /* u32 数量 */
@@ -40,12 +42,12 @@ extern "C"
 #endif
 
 /* ---- TX(发送)方向 ---- */
-/* 底盘状态字段:bool[2]=enable/fast(最小化回传) */
+/* 状态字段:bool[2]=enable/fast,u8[1]=mech_status(紧凑机构状态) */
 #ifndef BT_PROTO_TX_BOOL_NUM
 #define BT_PROTO_TX_BOOL_NUM   2U   /* bool 数量:enable / fast */
 #endif
 #ifndef BT_PROTO_TX_U8_NUM
-#define BT_PROTO_TX_U8_NUM     0U   /* u8 数量 */
+#define BT_PROTO_TX_U8_NUM     1U   /* u8 数量:mech_status */
 #endif
 #ifndef BT_PROTO_TX_U16_NUM
 #define BT_PROTO_TX_U16_NUM    0U   /* u16 数量 */

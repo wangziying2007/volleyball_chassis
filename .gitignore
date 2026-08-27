@@ -2,6 +2,7 @@
 .vscode/
 .claude/
 DOCS/
+CONTEXT.md
 
 # ---- Keil MDK:构建输出与临时文件 ----
 # 整个输出目录都是编译产物(.o/.d/.axf/.hex/.map/.htm/.lnp/.dep/.sct)

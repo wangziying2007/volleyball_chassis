@@ -17,10 +17,13 @@
 │   └── src/
 ├── Communication/             对外数据通信 / 数据输出
 │   ├── Bluetooth/             bluetooth.h/c(帧层+Queue)、bluetooth_protocol.h/c(Payload 协议层)
-│   └── VOFA/                  vofa.h/c(VOFA+ 打波)
+│   ├── VOFA/                  vofa.h/c(VOFA+ 打波)
+│   └── IMU/                   imu.h/c(Yesense 姿态,USART3,FreeRTOS Queue)
 ├── Application/               任务函数、中断回调、业务逻辑、聚合头
 │   ├── inc/                   includes.h IQRhandler.h myostasks.h bluetooth_serv.h
-│   └── src/                   IQRhandler.c myostasks.c bluetooth_serv.c
+│   ├── src/                   IQRhandler.c myostasks.c bluetooth_serv.c
+│   ├── Chassis/               chassis.h/c wheel.h/c(四轮全向底盘 + 航向保持)
+│   └── Mech/                  mech.h/c(CAN1 机构主控侧:蓝牙按键→命令→从板反馈)
 ├── BSP/                       板级资源(LED/蜂鸣器)
 ├── Algorithm/                 纯算法(PID/滤波/数学)
 └── Config/                    配置宏(motor_config/board_config/app_config/comm_config)
@@ -51,7 +54,7 @@ FDCAN RX 中断
  └─ 各电机反馈帧直接解析(不进软件 RX 队列):
       ZDrive: Zdrive_IsOurs? → ZdriveReceive
       DJI:    DJmotor_Receive;VESC: VescReceiveData_CAN2
-      CAN1 用户通信帧在这里直接解析
+      CAN1 机构从板反馈(Mech_IsOurs → Mech_OnFeedback)在这里直接解析
 
 UART 空闲中断 (HAL_UARTEx_RxEventCallback)
  └─ 数据可用 → 协议处理写在这里 → 重新启动 DMA 接收
@@ -173,3 +176,20 @@ main()
   收发任务在模块内部 `Bluetooth_Init()` 里创建(main.c 启动时调用);
 - 中断里只搬数据 + 发信号,包头/包尾/校验解析全在接收任务里;
 - Payload 协议最小示例(消息 Pack/Parse 写法)见 `Application` 的 bluetooth_serv.c。
+
+## 9. IMU 与机构(CAN1)
+
+### 9.1 IMU 姿态(USART3)
+- `Communication/IMU/imu.h/c`:Yesense 协议(0x59 0x53 帧),FreeRTOS Queue 版,只收不发;
+- 输出 roll/pitch/yaw(相对上电零位)、角速度(deg/s),可选加速度/四元数(`IMU_YS_OUTPUT_PROFILE`);
+- 业务:Chassis_Task 每 200Hz `Imu_Receive()` 取最新航向,传给 `Chassis_Update(chassis, yaw)`;
+- 并发:UART DMA/IDLE → `Imu_UartRxEvent()` → 环形缓冲 → `Imu_RxTask` 解析 → 覆盖式 Queue → `Imu_Receive()`。
+
+### 9.2 底盘航向保持
+- 方案 A:操作手 `wz` 在 ±`CHASSIS_WZ_HOLD_DEADBAND_DEG_S`(默认 4°/s)内时,用 IMU 锁定当前航向,位置式 PID 输出角速度修正,抵消漂移/跑偏;`wz` 超死区视为转向,锁向失效并重新锁向。见 `chassis.c` `Chassis_EffWz`。
+
+### 9.3 机构(CAN1 主控侧)`Application/Mech/mech.h/c`
+- 职责:蓝牙 13 个机构按键(2 吸盘臂取/放/放气 + 灵石夹爪张/夹/放/回零 + 使能/失能/复位)→ 按键上升沿 → 暂存一条 CAN1 命令 → TIM2 200Hz `Mech_Func()` 以**扩展帧** `0x010105xx` 发出;
+- 接收:FDCAN1 RX 中断 `Mech_IsOurs()` 过滤从板反馈 `0x050101xx` → `Mech_OnFeedback()` 更新状态 → `Mech_GetStatus()` 供蓝牙 TX 回传 `mech_status`(左臂/右臂/夹爪各 2 bit + 使能 + 错误);
+- 并发:任务 `Mech_PollButtons` 只写暂存项,ISR `Mech_Func()` 读取并入队(CAN1_Txqueue),与电机"任务写目标、ISR 发帧"一致;
+- 从板做状态机,主控只做"按键→命令码"映射;从板在开发,命令/反馈表见 [B2通信协议.md](B2通信协议.md)。

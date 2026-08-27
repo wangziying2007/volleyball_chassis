@@ -74,14 +74,14 @@ Bluetooth_Receive(&frame, 超时ms);   // 收一条消息
 
 | 包头 | 包长 | 包尾 | 帧长(CRC16) | 帧长(SUM8) |
 | --- | --- | --- | --- | --- |
-| 双(2) | 无 | 单(1) | 2+13+2+1 = 18 | 17 |
-| 双(2) | 有 | 单(1) | 2+1+13+2+1 = 19 | 18 |
-| 单(1) | 无 | 双(2) | 1+13+2+2 = 18 | 17 |
-| 单(1) | 有 | 双(2) | 1+1+13+2+2 = 19 | 18 |
-| **单(1)** | 无 | **单(1)** | 1+13+2+1 = 17 | **1+13+1+1 = 16** |
+| 双(2) | 无 | 单(1) | 2+15+2+1 = 20 | 19 |
+| 双(2) | 有 | 单(1) | 2+1+15+2+1 = 21 | 20 |
+| 单(1) | 无 | 双(2) | 1+15+2+2 = 20 | 19 |
+| 单(1) | 有 | 双(2) | 1+1+15+2+2 = 21 | 20 |
+| **单(1)** | 无 | **单(1)** | 1+15+2+1 = 19 | **1+15+1+1 = 18** |
 
 最后一行是本工程当前配置(单包头 `0xA5`、无包长字段、单包尾 `0x5A`、SUM8),
-**整帧固定 16 字节 / 包体 13 字节**。
+**整帧固定 18 字节 / 包体 15 字节**。
 
 补充说明:
 
@@ -173,46 +173,62 @@ void MyMsg_Pack(uint8_t *payload, const MyMsg_t *msg) { ... }
 ```
 
 完整示例见 `Application/bluetooth_serv.c`(`BT_Cmd_Parse` 用 BT_Proto_RX_* 收命令 / `BT_Status_Pack`
-用 BT_Proto_TX_* 发状态;底盘协议的收发字段见 6.2 节字段表)。
+用 BT_Proto_TX_* 发状态;底盘协议的收发字段见 6.1 节字段表)。
 把 `bluetooth_serv.h` 里 `BT_SERV_ENABLE` 改成 1,`Chassis_Task` 收命令并回传状态,
 用于验证整条链路。换真实协议时:改对应方向宏数量 → 改对应业务结构体 → 改 Pack/Parse 函数。
 
-> 省带宽:帧层默认 `BT_PAYLOAD_LENGTH = 0`(整帧固定 16 字节,包体 13 字节 = `BT_PROTO_PAYLOAD_MAX`)。
+> 省带宽:帧层默认 `BT_PAYLOAD_LENGTH = 0`(整帧固定 18 字节,包体 15 字节 = `BT_PROTO_PAYLOAD_MAX`;收发各方字段数量在 `Config/comm_config.h` 配,包体随较大方向取)。
 > 帧长 = 包头(1) + 包体(`BT_PROTO_PAYLOAD_MAX`) + 校验(1) + 包尾(1) = `BT_PROTO_PAYLOAD_MAX + 3`。
 > 改包体大小:改 `Config/comm_config.h` 的收发方向字段数量宏,`BT_PROTO_PAYLOAD_MAX` 随之变化,收发两边一起改。
 
 ### 6.1 底盘命令/状态字段表
 
-**RX 命令(上位机 → 板子)**:body = 13 字节 = bool 打包区 1 字节 + 3 个 float 12 字节。
+**RX 命令(上位机 → 板子)**:body = 15 字节 = bool 打包区 3 字节 + 3 个 float 12 字节。
 
 | body 偏移 | 字段 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| 0 | bool[0] | 1 bit | enable(使能) |
-| .. | bool[1] | 1 bit | disable(失能) |
+| 0 | bool[0] | 1 bit | enable(底盘使能) |
+| .. | bool[1] | 1 bit | disable(底盘失能) |
 | .. | bool[2] | 1 bit | reset(整板复位) |
 | .. | bool[3] | 1 bit | fast(快速模式,默认 1.0x) |
-| 1 | float[0] | 4B 小端 | vx 纵向速度,mm/s |
-| 5 | float[1] | 4B 小端 | vy 横向速度,mm/s |
-| 9 | float[2] | 4B 小端 | wz 自转角速度,°/s |
+| .. | bool[4] | 1 bit | mech_enable(机构使能) |
+| .. | bool[5] | 1 bit | mech_disable(机构失能/急停) |
+| .. | bool[6] | 1 bit | mech_reset(机构复位) |
+| .. | bool[7] | 1 bit | left_work1(左臂取块) |
+| 1 | bool[8] | 1 bit | left_work2(左臂放块) |
+| .. | bool[9] | 1 bit | right_work1(右臂取块) |
+| .. | bool[10] | 1 bit | right_work2(右臂放块) |
+| .. | bool[11] | 1 bit | left_pulldown(左臂放气) |
+| .. | bool[12] | 1 bit | right_pulldown(右臂放气) |
+| .. | bool[13] | 1 bit | grip_open(灵石夹爪张开) |
+| .. | bool[14] | 1 bit | grip_close(灵石夹爪夹紧) |
+| .. | bool[15] | 1 bit | grip_release(灵石夹爪放开) |
+| 2 | bool[16] | 1 bit | grip_zero(灵石夹爪回零) |
+| 3 | float[0] | 4B 小端 | vx 纵向速度,mm/s |
+| 7 | float[1] | 4B 小端 | vy 横向速度,mm/s |
+| 11 | float[2] | 4B 小端 | wz 自转角速度,°/s |
 
-4 个 bool 打包进第 0 字节(LSB 在前):`bool[0]=enable / [1]=disable / [2]=reset / [3]=fast`。
+17 个 bool 打包进字节 0/1/2(LSB 在前):字节0 = enable/disable/reset/fast/mech_enable/mech_disable/mech_reset/left_work1;
+字节1 = left_work2/right_work1/right_work2/left_pulldown/right_pulldown/grip_open/grip_close/grip_release;
+字节2 = grip_zero + 7 位保留。
 
-**TX 状态(板子 → 上位机)**:body = 1 字节 = bool 打包区(2 bit,LSB 在前);其余 body 字节补 0。
+**TX 状态(板子 → 上位机)**:body = 2 字节 = bool 打包区(2 bit,LSB 在前)+ mech_status(1 字节);其余 body 字节补 0。
 
 | body 偏移 | 字段 | 类型 | 说明 |
 | --- | --- | --- | --- |
 | 0 | bool[0] | 1 bit | enable(当前使能状态) |
 | .. | bool[1] | 1 bit | fast(当前快速模式) |
+| 1 | mech_status | 1B | 紧凑机构状态(位布局见 `Application/Mech/mech.h` 的 `MECH_STATUS_*`) |
 
-> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 13 字节、TX = 1 字节),
-> 收发两向取较大者得 `BT_PROTO_PAYLOAD_MAX` = 13 → 整帧 **16 字节**。
+> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 15 字节、TX = 2 字节),
+> 收发两向取较大者得 `BT_PROTO_PAYLOAD_MAX` = 15 → 整帧 **18 字节**。
 
 ## 7. 常见问题
 
 - **收不到**:先看蓝牙模块波特率(默认 115200)和上位机是否一致;再用串口助手
   直接看 UART6_RxBuffer 有没有原始数据。
 - **收到但解析失败**:用 VOFA+ 或串口助手看原始字节,检查包头是否被上位机
-  转成了字符串/加了换行;再核对帧格式是否与 BT_PAYLOAD_LENGTH 一致(0 时无包长字段,整帧 16 字节;N 时包头后的包长字节 = N)。
+  转成了字符串/加了换行;再核对帧格式是否与 BT_PAYLOAD_LENGTH 一致(0 时无包长字段,整帧 18 字节;N 时包头后的包长字节 = N)。
 - **发送队列满**(Bluetooth_Send 返回 false):把 BT_TX_QUEUE_SIZE 调大,
   或检查 TX 任务是不是卡在 DMA 上(发送完成中断没清 s_tx_busy)。
 - **DMA 相关报错**:确认缓冲在 D2 段(__RAM_D2_),发送前刷 D-Cache
