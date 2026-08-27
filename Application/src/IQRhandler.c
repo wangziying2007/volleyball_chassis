@@ -27,6 +27,7 @@
 #include "vofa.h"
 #include "board_config.h"
 #include "bluetooth.h"
+#include "imu.h"
 
 __RAM_D2_ ALIGN_32B uint8_t UART1_RxBuffer[UART_RX_BUFFER_SIZE] = {0};
 __RAM_D2_ ALIGN_32B uint8_t UART3_RxBuffer[UART_RX_BUFFER_SIZE] = {0};
@@ -173,7 +174,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     else if (huart->Instance == USART3)
     {
         SCB_InvalidateDCache_by_Addr((uint32_t *)UART3_RxBuffer, Size);
-        /* 在这里加 USART3 的协议处理 */
+        Imu_UartRxEvent(UART3_RxBuffer, Size); /* IMU 模块:搬数据 + 通知解析任务 */
         HAL_UART_DMAStop(&huart3);
         HAL_UARTEx_ReceiveToIdle_DMA(&huart3, UART3_RxBuffer, UART_RX_BUFFER_SIZE);
     }

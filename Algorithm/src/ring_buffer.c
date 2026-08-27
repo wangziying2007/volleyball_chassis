@@ -24,6 +24,22 @@ bool RingBuffer_Push(RingBuffer_t *rb, uint8_t byte)
     return true;
 }
 
+bool RingBuffer_PushSegment(RingBuffer_t *rb, const uint8_t *data, uint16_t len)
+{
+    uint16_t i;
+
+    /* 放不下整段丢弃,避免解析器看到半帧导致误解析 */
+    if (len > (uint16_t)(rb->size - rb->count)) {
+        return false;
+    }
+    for (i = 0U; i < len; i++) {
+        rb->buffer[rb->head] = data[i];
+        rb->head = (uint16_t)((rb->head + 1U) % rb->size);
+    }
+    rb->count = (uint16_t)(rb->count + len);
+    return true;
+}
+
 bool RingBuffer_Pop(RingBuffer_t *rb, uint8_t *byte)
 {
     if (RingBuffer_IsEmpty(rb)) {

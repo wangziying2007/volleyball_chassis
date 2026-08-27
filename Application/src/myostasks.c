@@ -16,6 +16,7 @@
 #include "bluetooth_serv.h" /* 含 BT_SERV_ENABLE 开关,默认 0 */
 #include "ZDrive.h"         /* Zmotor[] / Zdrive_Speed / Zdrive_Disable */
 #include "chassis.h"        /* 全向轮底盘业务组件 */
+#include "imu.h"            /* IMU 姿态读取(航向保持) */
 
 /* CubeMX 默认任务 LEDTask:四灯流水 */
 void Alarm_Task(void *argument)
@@ -120,9 +121,18 @@ void Chassis_Task(void *argument)
         }
 #endif
 
+        /* 读 IMU 最新航向(° ,相对上电零位),给航向保持闭环用 */
+        static float last_yaw = 0.0f;
+        ImuData_t imu;
+        if (Imu_Receive(&imu, 0))
+        {
+            last_yaw = imu.body_orientation[2];
+        }
+
         /* 周期解算:使能时按 vx/vy/wz 算轮速写入 Zmotor[].valSetNow.speed_rpm,
-           失能时全轮置 0;实际 CAN 发送由 TIM2 里 ZdriveFunc() 完成 */
-        Chassis_Update(&chassis);
+           失能时全轮置 0;实际 CAN 发送由 TIM2 里 ZdriveFunc() 完成。
+           传入 yaw_deg 后,底盘在 wz≈0 时用 IMU 维持航向(纠正漂移/跑偏) */
+        Chassis_Update(&chassis, last_yaw);
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }

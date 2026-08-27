@@ -41,6 +41,7 @@
 #include "bsp_solenoid.h"
 #include "app_config.h"
 #include "bluetooth.h"
+#include "imu.h"
 
 /* USER CODE END Includes */
 
@@ -161,6 +162,9 @@ int main(void)
 #endif
   /* 蓝牙模块:建队列、建收发任务(必须在启动串口 DMA 接收之前) */
   Bluetooth_Init();
+
+  /* IMU 模块:建接收任务/队列(必须先于 USART3 DMA 接收启动) */
+  Imu_Init();
 
   /* 各串口空闲 DMA 接收启动(USART2 未配 DMA,需要的话在 CubeMX 里加) */
   // HAL_UARTEx_ReceiveToIdle_DMA(&huart1, UART1_RxBuffer, UART_RX_BUFFER_SIZE);

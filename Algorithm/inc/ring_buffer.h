@@ -22,6 +22,8 @@ typedef struct {
 
 void     RingBuffer_Init(RingBuffer_t *rb, uint8_t *buffer, uint16_t size);
 bool     RingBuffer_Push(RingBuffer_t *rb, uint8_t byte);
+/* 分批推入一段数据;放得下才整段写入并返回 true,放不下整段丢弃返回 false(保帧完整) */
+bool     RingBuffer_PushSegment(RingBuffer_t *rb, const uint8_t *data, uint16_t len);
 bool     RingBuffer_Pop(RingBuffer_t *rb, uint8_t *byte);
 uint16_t RingBuffer_Available(const RingBuffer_t *rb);
 bool     RingBuffer_IsEmpty(const RingBuffer_t *rb);

@@ -21,6 +21,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "wheel.h"
+#include "pid.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -41,6 +42,16 @@ extern "C"
 #define CHASSIS_MODE_FAST_SCALE 1.0f    /* 快速档缩放(线+角速度同比) */
 #define CHASSIS_MODE_SLOW_SCALE 0.25f   /* 慢速档缩放 */
 
+/* ------------------------------------------------------------------ */
+/* 航向保持闭环(方案 A:操作手 wz≈0 时,用 IMU 航向锁定并把车稳在锁定方向)     */
+/* ------------------------------------------------------------------ */
+#define CHASSIS_WZ_HOLD_DEADBAND_DEG_S 4.0f  /* wz 超过该值视为"转向",航向保持暂失效 */
+#define CHASSIS_HEADING_KP 3.0f              /* 航向环比例:输出(°/s) / 误差(°) */
+#define CHASSIS_HEADING_KI 0.0f              /* 积分(稳态漂移补偿;漂移先不管,置 0) */
+#define CHASSIS_HEADING_KD 0.4f              /* 微分(阻尼,抑制过冲) */
+#define CHASSIS_HEADING_OUTPUT_LIMIT_DEG_S 120.0f /* 航向修正最大可输出角速度 */
+#define CHASSIS_HEADING_SIGN 1.0f            /* 若转向反了,改成 -1.0f */
+
 /* 轮子索引(右手系象限顺序,见文件头注释) */
 #define CHASSIS_WHEEL_FL 0
 #define CHASSIS_WHEEL_FR 1
@@ -56,6 +67,9 @@ typedef struct
     float   vx;        /* 目标纵向速度,mm/s */
     float   vy;        /* 目标横向速度,mm/s */
     float   wz;        /* 目标自转角速度,deg/s */
+    PIDType heading_pid;      /* 航向保持闭环 PID */
+    float   hold_yaw;         /* 锁定的航向,deg(IMU 相对上电零位) */
+    bool    heading_lock_init; /* 是否已锁定(首次 hold / 转向后重新锁定用) */
 } Chassis_t;
 
 /* Init 自动绑定 Zmotor[0..3](顺序见文件头);如接线不同可再用 BindWheel 覆盖 */
@@ -70,7 +84,8 @@ void Chassis_SetMode(Chassis_t *chassis, bool fast);   /* fast:1=快速 / 0=慢�
 bool Chassis_IsEnabled(const Chassis_t *chassis);
 bool Chassis_GetFast(const Chassis_t *chassis);
 void Chassis_Reset(Chassis_t *chassis);
-void Chassis_Update(Chassis_t *chassis);
+/* yaw_deg = IMU 测量航向(deg,相对上电零位):wz≈0 时用其做航向保持闭环 */
+void Chassis_Update(Chassis_t *chassis, float yaw_deg);
 
 #ifdef __cplusplus
 }
