@@ -52,6 +52,13 @@ extern "C"
 #define CHASSIS_HEADING_OUTPUT_LIMIT_DEG_S 120.0f /* 航向修正最大可输出角速度 */
 #define CHASSIS_HEADING_SIGN 1.0f            /* 若转向反了,改成 -1.0f */
 
+/* 定点转向(目标 = 当前航向 ± 90°,纯自转;手动 wz 超死区即接管,见 Chassis_EffWz) */
+#define CHASSIS_TURN_ANGLE_DEG    90.0f   /* 定点转向角度,deg */
+#define CHASSIS_TURN_LEFT_DIR     1.0f    /* 左转方向(目标角增量符号);右转取其负;物理方向反了改 -1 */
+#define CHASSIS_TURN_DONE_TOL_DEG 2.0f    /* 到位容差:|目标-当前| 小于该值视为接近 */
+#define CHASSIS_TURN_DONE_HOLDS   3U      /* 连续 N 个 tick 在容差内才算到位(防噪声提前停) */
+#define CHASSIS_TURN_TIMEOUT_TICKS 500U   /* 超时保护(200Hz 下 = 2.5s):到不了就强制停并锁当前 */
+
 /* 轮子索引(右手系象限顺序,见文件头注释) */
 #define CHASSIS_WHEEL_FL 0
 #define CHASSIS_WHEEL_FR 1
@@ -70,6 +77,13 @@ typedef struct
     PIDType heading_pid;      /* 航向保持闭环 PID */
     float   hold_yaw;         /* 锁定的航向,deg(IMU 相对上电零位) */
     bool    heading_lock_init; /* 是否已锁定(首次 hold / 转向后重新锁定用) */
+    /* 定点转向(±90°)状态 */
+    bool    turn_pending;     /* 收到了转向命令,待抓当前航向 */
+    int8_t  turn_dir;         /* +1=左转90 / -1=右转90(目标角增量方向) */
+    bool    turn_active;      /* 正在执行定点转向 */
+    float   turn_target_yaw;  /* 目标航向(绝对, deg) */
+    uint8_t turn_done_hold;   /* 连续在容差内的 tick 计数 */
+    uint16_t turn_elapsed;    /* 执行已用 tick 数(超时保护) */
 } Chassis_t;
 
 /* Init 自动绑定 Zmotor[0..3](顺序见文件头);如接线不同可再用 BindWheel 覆盖 */
@@ -86,6 +100,9 @@ bool Chassis_GetFast(const Chassis_t *chassis);
 void Chassis_Reset(Chassis_t *chassis);
 /* yaw_deg = IMU 测量航向(deg,相对上电零位):wz≈0 时用其做航向保持闭环 */
 void Chassis_Update(Chassis_t *chassis, float yaw_deg);
+/* 定点转向:dir = +1 左转90° / -1 右转90°(相对当前航向)。
+   仅在底盘使能时接受;转进行中忽略新请求;手动 wz 超死区会取消。 */
+void Chassis_RequestTurn(Chassis_t *chassis, int8_t dir);
 
 #ifdef __cplusplus
 }

@@ -66,6 +66,9 @@ void Chassis_Task(void *argument)
 {
     (void)argument;
     static Chassis_t chassis;
+    static float last_yaw = 0.0f;        /* IMU 最近航向(deg),给航向保持/定点转向 + 状态回传 */
+    static bool prev_turn_left = false;  /* 左转按钮上一帧状态(边沿检测) */
+    static bool prev_turn_right = false; /* 右转按钮上一帧状态(边沿检测) */
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(5);
@@ -108,6 +111,21 @@ void Chassis_Task(void *argument)
                 /* 每帧更新目标速度(使能后连续可调;内部先按当前档缩放、再限幅) */
                 Chassis_SetVelocity(&chassis, cmd.vx, cmd.vy, cmd.wz);
 
+                /* 定点转向:按钮边沿 → RequestTurn(相对当前航向 ±90°)。
+                   边沿用上一帧状态判沿(与机构按键同模式);Chassis_RequestTurn 内部仅在使能时生效。 */
+                bool turnL_edge = cmd.turn_left90 && !prev_turn_left;
+                bool turnR_edge = cmd.turn_right90 && !prev_turn_right;
+                prev_turn_left  = cmd.turn_left90;
+                prev_turn_right = cmd.turn_right90;
+                if (turnL_edge)
+                {
+                    Chassis_RequestTurn(&chassis, +1); /* +1 = 左转90° */
+                }
+                else if (turnR_edge)
+                {
+                    Chassis_RequestTurn(&chassis, -1); /* -1 = 右转90° */
+                }
+
                 /* 机构按键:边沿检测 → 暂存 CAN1 命令(实际发送由 TIM2 里 Mech_Func 完成) */
                 MechButtons_t mb = {
                     .enable        = cmd.mech_enable,
@@ -138,8 +156,15 @@ void Chassis_Task(void *argument)
                 Zmotor[i].mode = Zdrive_Disable;
         }
 
+        /* 读 IMU 最新航向(°,相对上电零位):给航向保持/定点转向闭环 + 状态回传用 */
+        ImuData_t imu;
+        if (Imu_Receive(&imu, 0))
+        {
+            last_yaw = imu.body_orientation[2];
+        }
+
 #if BT_SERV_ENABLE
-        /* 周期回传最小状态(enable + fast),每 BT_SERV_STATUS_PERIOD_MS 一次 */
+        /* 周期回传状态(enable + fast + 机构状态 + yaw 航向遥测),每 BT_SERV_STATUS_PERIOD_MS 一次 */
         static TickType_t last_status_tick = 0U;
         if ((now - last_status_tick) >= pdMS_TO_TICKS(BT_SERV_STATUS_PERIOD_MS))
         {
@@ -147,18 +172,11 @@ void Chassis_Task(void *argument)
             status.enable      = Chassis_IsEnabled(&chassis);
             status.fast        = Chassis_GetFast(&chassis);
             status.mech_status = Mech_GetStatus();
+            status.yaw         = last_yaw; /* 实时航向遥测,即使未使能也回传(停着也能看朝向) */
             BT_Serv_Status_Send(&status);
             last_status_tick = now;
         }
 #endif
-
-        /* 读 IMU 最新航向(° ,相对上电零位),给航向保持闭环用 */
-        static float last_yaw = 0.0f;
-        ImuData_t imu;
-        if (Imu_Receive(&imu, 0))
-        {
-            last_yaw = imu.body_orientation[2];
-        }
 
         /* 周期解算:使能时按 vx/vy/wz 算轮速写入 Zmotor[].valSetNow.speed_rpm,
            失能时全轮置 0;实际 CAN 发送由 TIM2 里 ZdriveFunc() 完成。

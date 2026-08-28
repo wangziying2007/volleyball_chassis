@@ -48,6 +48,13 @@ void Chassis_Init(Chassis_t *chassis)
     PID_Init(&chassis->heading_pid, CHASSIS_HEADING_KP, CHASSIS_HEADING_KI, CHASSIS_HEADING_KD, PIDPOS);
     chassis->hold_yaw = 0.0f;
     chassis->heading_lock_init = false;
+    /* 定点转向状态清零 */
+    chassis->turn_pending = false;
+    chassis->turn_dir = 0;
+    chassis->turn_active = false;
+    chassis->turn_target_yaw = 0.0f;
+    chassis->turn_done_hold = 0U;
+    chassis->turn_elapsed = 0U;
 }
 
 void Chassis_BindWheel(Chassis_t *chassis, uint8_t index, Zdrive *motor)
@@ -94,11 +101,15 @@ void Chassis_Enable(Chassis_t *chassis)
 {
     chassis->enable = true;
     chassis->heading_lock_init = false; /* 重新使能后,首次航向保持重新锁定当前方向 */
+    chassis->turn_pending = false;      /* 重新使能:清掉任何残留转向请求/状态 */
+    chassis->turn_active = false;
 }
 
 void Chassis_Disable(Chassis_t *chassis)
 {
     chassis->enable = false;
+    chassis->turn_pending = false; /* 失能/急停:取消定点转向 */
+    chassis->turn_active = false;
 }
 
 /* 设置模式档:fast = 1 快速 / 0 慢速(仅改缩放,不影响使能状态) */
@@ -128,22 +139,91 @@ void Chassis_Reset(Chassis_t *chassis)
     chassis->vx = 0.0f;
     chassis->vy = 0.0f;
     chassis->wz = 0.0f;
+    chassis->turn_pending = false; /* 复位速度目标:一并取消定点转向 */
+    chassis->turn_active = false;
     for (i = 0; i < 4U; i++)
     {
         Wheel_SetSpeed(&chassis->wheels[i], 0.0f);
     }
 }
 
-/* 计算用于运动学的有效 wz(操作手 wz 或航向保持修正量)。
+/* 定点转向:dir = +1 左转90° / -1 右转90°(目标角增量方向)。
+   仅在底盘使能时接受;转进行中忽略新请求(转完自动重新武装,见 Chassis_EffWz)。 */
+void Chassis_RequestTurn(Chassis_t *chassis, int8_t dir)
+{
+    if (chassis == NULL)
+    {
+        return;
+    }
+    if (!chassis->enable) /* 失能/掉线急停时不接受(与自动转前提一致) */
+    {
+        return;
+    }
+    chassis->turn_pending = true;
+    chassis->turn_dir = (dir >= 0) ? +1 : -1;
+}
+
+/* 计算用于运动学的有效 wz(操作手 wz、定点转向或航向保持修正量)。
    yaw_deg = IMU 航向(deg,相对上电零位)。 */
 static float Chassis_EffWz(Chassis_t *chassis, float yaw_deg)
 {
-    /* wz 超过死区 → 操作手在转向,航向保持失效:锁定到当前航向,释放后稳在最近角度 */
+    /* 手动转向优先:操作手 wz 超死区 → 取消一切自动(定点转向/航向保持),回到手动,
+       并锁到当前航向,释放后稳在最近角度 */
     if (fabsf(chassis->wz) > CHASSIS_WZ_HOLD_DEADBAND_DEG_S)
     {
+        chassis->turn_pending = false;
+        chassis->turn_active = false;
         chassis->hold_yaw = yaw_deg;
         chassis->heading_lock_init = false;
         return chassis->wz;
+    }
+
+    /* 定点转向:有请求 → 抓当前航向为起点,朝目标角走(目标角增量 = dir * 90°) */
+    if (chassis->turn_pending)
+    {
+        chassis->turn_pending = false;
+        chassis->turn_active = true;
+        chassis->turn_target_yaw = yaw_deg
+                                   + CHASSIS_TURN_LEFT_DIR * chassis->turn_dir * CHASSIS_TURN_ANGLE_DEG;
+        PID_Reset(&chassis->heading_pid);
+        chassis->turn_elapsed = 0U;
+        chassis->turn_done_hold = 0U;
+    }
+
+    /* 正在执行定点转向:用航向 PID 逼近目标角;到位(连续 N tick 在容差内)或超时即结束,
+       停、锁当前航向、重新武装下一指令 */
+    if (chassis->turn_active)
+    {
+        float err = Chassis_WrapDeg(chassis->turn_target_yaw - yaw_deg);
+
+        chassis->turn_elapsed++;
+
+        if (fabsf(err) < CHASSIS_TURN_DONE_TOL_DEG)
+        {
+            chassis->turn_done_hold++;
+        }
+        else
+        {
+            chassis->turn_done_hold = 0U;
+        }
+
+        if ((chassis->turn_done_hold >= CHASSIS_TURN_DONE_HOLDS)
+            || (chassis->turn_elapsed >= CHASSIS_TURN_TIMEOUT_TICKS))
+        {
+            chassis->turn_active = false;
+            chassis->hold_yaw = yaw_deg;     /* 锁住当前航向,继续航向保持 */
+            PID_Reset(&chassis->heading_pid);
+            chassis->heading_lock_init = true;
+        }
+        else
+        {
+            /* 目标角折到 yaw 附近(避免 ±180 跳变),位置式 PID 输出角速度修正量。
+               转向方向由 CHASSIS_HEADING_SIGN 统一校准(与航向保持一致)。 */
+            chassis->heading_pid.SetVal = yaw_deg + err;
+            chassis->heading_pid.CurVal = yaw_deg;
+            return Clamp(CHASSIS_HEADING_SIGN * PID_Calculate(&chassis->heading_pid),
+                         -CHASSIS_HEADING_OUTPUT_LIMIT_DEG_S, CHASSIS_HEADING_OUTPUT_LIMIT_DEG_S);
+        }
     }
 
     /* 进入航向保持:首次锁到当前航向,清掉 PID 累积 */

@@ -26,11 +26,14 @@ static void BT_Cmd_Parse(const uint8_t *payload, BT_Cmd_t *cmd)
     uint8_t bool_cnt = 0U;
     uint8_t f32_cnt  = 0U;
     /* 命令字段(顺序须与 comm_config.h 的 BT_PROTO_RX_* 一致):
-       bool[0..16] = enable/disable/reset/fast + 机构 13 字段,float[0..2] = vx/vy/wz */
+       bool[0..18] = enable/disable/reset/fast/turn_left90/turn_right90 + 机构 13 字段,
+       float[0..2] = vx/vy/wz */
     cmd->enable         = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->disable        = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->reset          = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->fast           = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->turn_left90    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->turn_right90   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->mech_enable    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->mech_disable   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->mech_reset     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
@@ -55,6 +58,7 @@ static void BT_Status_Pack(uint8_t *payload, const BT_Status_t *status)
     BT_Proto_TX_WriteBool(payload, 0, status->enable);
     BT_Proto_TX_WriteBool(payload, 1, status->fast);
     BT_Proto_TX_WriteU8(payload, 0, status->mech_status);
+    BT_Proto_TX_WriteFloat(payload, 0, status->yaw);
 }
 
 /* ================================================================== */

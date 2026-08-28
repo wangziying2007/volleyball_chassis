@@ -45,21 +45,23 @@ typedef struct {
     bool     disable; /* flag 1: 失能按钮(按下=底盘失能) */
     bool     reset;   /* flag 2: 复位按钮(按下=整板复位 NVIC_SystemReset) */
     bool     fast;    /* flag 3: 模式档(1=快速 / 0=慢速) */
+    bool     turn_left90;  /* flag 4: 左转90°(边沿,相对当前航向) */
+    bool     turn_right90; /* flag 5: 右转90°(边沿,相对当前航向) */
     /* 机构(机械臂/夹爪,主控转发为 CAN1 命令) */
-    bool     mech_enable;     /* flag 4: 机构使能(从板须先使能才执行动作) */
-    bool     mech_disable;    /* flag 5: 机构失能(急停) */
-    bool     mech_reset;      /* flag 6: 机构复位(臂回未上电位姿) */
-    bool     left_work1;      /* flag 7: 左臂取块 */
-    bool     left_work2;      /* flag 8: 左臂放块 */
-    bool     right_work1;     /* flag 9: 右臂取块 */
-    bool     right_work2;     /* flag 10: 右臂放块 */
-    bool     left_pulldown;   /* flag 11: 左臂释放气泵 */
-    bool     right_pulldown;  /* flag 12: 右臂释放气泵 */
+    bool     mech_enable;     /* flag 6: 机构使能(从板须先使能才执行动作) */
+    bool     mech_disable;    /* flag 7: 机构失能(急停) */
+    bool     mech_reset;      /* flag 8: 机构复位(臂回未上电位姿) */
+    bool     left_work1;      /* flag 9: 左臂取块 */
+    bool     left_work2;      /* flag 10: 左臂放块 */
+    bool     right_work1;     /* flag 11: 右臂取块 */
+    bool     right_work2;     /* flag 12: 右臂放块 */
+    bool     left_pulldown;   /* flag 13: 左臂释放气泵 */
+    bool     right_pulldown;  /* flag 14: 右臂释放气泵 */
     /* 灵石夹爪 */
-    bool     grip_open;       /* flag 13: 夹爪张开(预备) */
-    bool     grip_close;      /* flag 14: 夹爪夹紧(取灵石) */
-    bool     grip_release;    /* flag 15: 夹爪放开(放灵石) */
-    bool     grip_zero;       /* flag 16: 夹爪回零 */
+    bool     grip_open;       /* flag 15: 夹爪张开(预备) */
+    bool     grip_close;      /* flag 16: 夹爪夹紧(取灵石) */
+    bool     grip_release;    /* flag 17: 夹爪放开(放灵石) */
+    bool     grip_zero;       /* flag 18: 夹爪回零 */
     /* 目标速度 */
     float    vx;      /* 目标纵向速度,mm/s */
     float    vy;      /* 目标横向速度,mm/s */
@@ -73,6 +75,7 @@ typedef struct {
     bool     enable;      /* 底盘使能 */
     bool     fast;        /* 模式档:1=快速 / 0=慢速 */
     uint8_t  mech_status; /* 紧凑机构状态(位布局见 mech.h:MECH_STATUS_*) */
+    float    yaw;         /* IMU 航向遥测(deg,相对上电零位,wrap 到 [-180,180]) */
 } BT_Status_t;
 
 /* ------------------------------------------------------------------ */

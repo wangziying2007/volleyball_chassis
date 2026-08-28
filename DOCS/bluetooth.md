@@ -191,36 +191,39 @@ void MyMsg_Pack(uint8_t *payload, const MyMsg_t *msg) { ... }
 | .. | bool[1] | 1 bit | disable(底盘失能) |
 | .. | bool[2] | 1 bit | reset(整板复位) |
 | .. | bool[3] | 1 bit | fast(快速模式,默认 1.0x) |
-| .. | bool[4] | 1 bit | mech_enable(机构使能) |
-| .. | bool[5] | 1 bit | mech_disable(机构失能/急停) |
-| .. | bool[6] | 1 bit | mech_reset(机构复位) |
-| .. | bool[7] | 1 bit | left_work1(左臂取块) |
-| 1 | bool[8] | 1 bit | left_work2(左臂放块) |
-| .. | bool[9] | 1 bit | right_work1(右臂取块) |
-| .. | bool[10] | 1 bit | right_work2(右臂放块) |
-| .. | bool[11] | 1 bit | left_pulldown(左臂放气) |
-| .. | bool[12] | 1 bit | right_pulldown(右臂放气) |
-| .. | bool[13] | 1 bit | grip_open(灵石夹爪张开) |
-| .. | bool[14] | 1 bit | grip_close(灵石夹爪夹紧) |
-| .. | bool[15] | 1 bit | grip_release(灵石夹爪放开) |
-| 2 | bool[16] | 1 bit | grip_zero(灵石夹爪回零) |
+| .. | bool[4] | 1 bit | turn_left90(左转90°,边沿,相对当前航向) |
+| .. | bool[5] | 1 bit | turn_right90(右转90°,边沿,相对当前航向) |
+| .. | bool[6] | 1 bit | mech_enable(机构使能) |
+| .. | bool[7] | 1 bit | mech_disable(机构失能/急停) |
+| 1 | bool[8] | 1 bit | mech_reset(机构复位) |
+| .. | bool[9] | 1 bit | left_work1(左臂取块) |
+| .. | bool[10] | 1 bit | left_work2(左臂放块) |
+| .. | bool[11] | 1 bit | right_work1(右臂取块) |
+| .. | bool[12] | 1 bit | right_work2(右臂放块) |
+| .. | bool[13] | 1 bit | left_pulldown(左臂放气) |
+| .. | bool[14] | 1 bit | right_pulldown(右臂放气) |
+| .. | bool[15] | 1 bit | grip_open(灵石夹爪张开) |
+| 2 | bool[16] | 1 bit | grip_close(灵石夹爪夹紧) |
+| .. | bool[17] | 1 bit | grip_release(灵石夹爪放开) |
+| .. | bool[18] | 1 bit | grip_zero(灵石夹爪回零) |
 | 3 | float[0] | 4B 小端 | vx 纵向速度,mm/s |
 | 7 | float[1] | 4B 小端 | vy 横向速度,mm/s |
 | 11 | float[2] | 4B 小端 | wz 自转角速度,°/s |
 
-17 个 bool 打包进字节 0/1/2(LSB 在前):字节0 = enable/disable/reset/fast/mech_enable/mech_disable/mech_reset/left_work1;
-字节1 = left_work2/right_work1/right_work2/left_pulldown/right_pulldown/grip_open/grip_close/grip_release;
-字节2 = grip_zero + 7 位保留。
+19 个 bool 打包进字节 0/1/2(LSB 在前):字节0 = enable/disable/reset/fast/turn_left90/turn_right90/mech_enable/mech_disable;
+字节1 = mech_reset/left_work1/left_work2/right_work1/right_work2/left_pulldown/right_pulldown/grip_open;
+字节2 = grip_close/grip_release/grip_zero + 5 位保留。
 
-**TX 状态(板子 → 上位机)**:body = 2 字节 = bool 打包区(2 bit,LSB 在前)+ mech_status(1 字节);其余 body 字节补 0。
+**TX 状态(板子 → 上位机)**:body = 6 字节 = bool 打包区(2 bit,LSB 在前)+ mech_status(1 字节)+ yaw(4B 小端);其余 body 字节补 0。
 
 | body 偏移 | 字段 | 类型 | 说明 |
 | --- | --- | --- | --- |
 | 0 | bool[0] | 1 bit | enable(当前使能状态) |
 | .. | bool[1] | 1 bit | fast(当前快速模式) |
 | 1 | mech_status | 1B | 紧凑机构状态(位布局见 `Application/Mech/mech.h` 的 `MECH_STATUS_*`) |
+| 2 | yaw | 4B 小端 | IMU 航向遥测,deg,相对上电零位(wrap 到 [-180,180]) |
 
-> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 15 字节、TX = 2 字节),
+> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 15 字节、TX = 6 字节),
 > 收发两向取较大者得 `BT_PROTO_PAYLOAD_MAX` = 15 → 整帧 **18 字节**。
 
 ## 7. 常见问题
