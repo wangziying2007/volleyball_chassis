@@ -81,6 +81,13 @@ void Chassis_Task(void *argument)
     {
         TickType_t now = xTaskGetTickCount();
 
+        /* 读 IMU 最新航向(°,相对上电零位):给航向保持/定点转向/世界系锁定 + 状态回传用 */
+        ImuData_t imu;
+        if (Imu_Receive(&imu, 0))
+        {
+            last_yaw = imu.body_orientation[2];
+        }
+
         BT_Cmd_t cmd;
         if (BT_Serv_Cmd_Receive(&cmd, 0))
         {
@@ -95,6 +102,9 @@ void Chassis_Task(void *argument)
             {
                 /* 模式档切换:1=快速 / 0=慢速(蓝牙触发,无论是否使能都先落档,立即生效) */
                 Chassis_SetMode(&chassis, cmd.fast);
+
+                /* 世界坐标系锁定:1=世界系 / 0=车身系;上升沿在内部重新冻结世界系基准 */
+                Chassis_SetWorldLock(&chassis, cmd.lock, last_yaw);
 
                 if (cmd.disable)
                 {
@@ -156,21 +166,15 @@ void Chassis_Task(void *argument)
                 Zmotor[i].mode = Zdrive_Disable;
         }
 
-        /* 读 IMU 最新航向(°,相对上电零位):给航向保持/定点转向闭环 + 状态回传用 */
-        ImuData_t imu;
-        if (Imu_Receive(&imu, 0))
-        {
-            last_yaw = imu.body_orientation[2];
-        }
-
 #if BT_SERV_ENABLE
-        /* 周期回传状态(enable + fast + 机构状态 + yaw 航向遥测),每 BT_SERV_STATUS_PERIOD_MS 一次 */
+        /* 周期回传状态(enable + fast + world_lock + 机构状态 + yaw 航向遥测),每 BT_SERV_STATUS_PERIOD_MS 一次 */
         static TickType_t last_status_tick = 0U;
         if ((now - last_status_tick) >= pdMS_TO_TICKS(BT_SERV_STATUS_PERIOD_MS))
         {
             BT_Status_t status;
             status.enable      = Chassis_IsEnabled(&chassis);
             status.fast        = Chassis_GetFast(&chassis);
+            status.lock_active = Chassis_GetWorldLock(&chassis);
             status.mech_status = Mech_GetStatus();
             status.yaw         = last_yaw; /* 实时航向遥测,即使未使能也回传(停着也能看朝向) */
             BT_Serv_Status_Send(&status);

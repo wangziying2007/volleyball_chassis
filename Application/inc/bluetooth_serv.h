@@ -62,6 +62,7 @@ typedef struct {
     bool     grip_close;      /* flag 16: 夹爪夹紧(取灵石) */
     bool     grip_release;    /* flag 17: 夹爪放开(放灵石) */
     bool     grip_zero;       /* flag 18: 夹爪回零 */
+    bool     lock;            /* flag 19: 世界坐标系锁定(1=世界系,0=车身系;上升沿重新冻结基准) */
     /* 目标速度 */
     float    vx;      /* 目标纵向速度,mm/s */
     float    vy;      /* 目标横向速度,mm/s */
@@ -74,6 +75,7 @@ typedef struct {
 typedef struct {
     bool     enable;      /* 底盘使能 */
     bool     fast;        /* 模式档:1=快速 / 0=慢速 */
+    bool     lock_active; /* 世界坐标系锁定是否激活 */
     uint8_t  mech_status; /* 紧凑机构状态(位布局见 mech.h:MECH_STATUS_*) */
     float    yaw;         /* IMU 航向遥测(deg,相对上电零位,wrap 到 [-180,180]) */
 } BT_Status_t;

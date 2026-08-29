@@ -48,6 +48,9 @@ void Chassis_Init(Chassis_t *chassis)
     PID_Init(&chassis->heading_pid, CHASSIS_HEADING_KP, CHASSIS_HEADING_KI, CHASSIS_HEADING_KD, PIDPOS);
     chassis->hold_yaw = 0.0f;
     chassis->heading_lock_init = false;
+    /* 世界坐标系锁定:默认关(车身系),基准清 0 */
+    chassis->world_lock = false;
+    chassis->world_lock_yaw = 0.0f;
     /* 定点转向状态清零 */
     chassis->turn_pending = false;
     chassis->turn_dir = 0;
@@ -163,9 +166,29 @@ void Chassis_RequestTurn(Chassis_t *chassis, int8_t dir)
     chassis->turn_dir = (dir >= 0) ? +1 : -1;
 }
 
+/* 世界坐标系锁定:lock 由 0->1 上升沿时,用 yaw_deg 冻结世界系基准(对齐车身当前朝向)。
+   只改平移参考帧;车身朝向稳定(航向保持/定点转向)不受影响。 */
+void Chassis_SetWorldLock(Chassis_t *chassis, bool lock, float yaw_deg)
+{
+    if (chassis == NULL)
+    {
+        return;
+    }
+    if (lock && !chassis->world_lock) /* 上升沿:重新冻结世界系,对齐当前车身朝向 */
+    {
+        chassis->world_lock_yaw = yaw_deg;
+    }
+    chassis->world_lock = lock;
+}
+
+bool Chassis_GetWorldLock(const Chassis_t *chassis)
+{
+    return (chassis != NULL) && chassis->world_lock;
+}
+
 /* 计算用于运动学的有效 wz(操作手 wz、定点转向或航向保持修正量)。
    yaw_deg = IMU 航向(deg,相对上电零位)。 */
-static float Chassis_EffWz(Chassis_t *chassis, float yaw_deg)
+static float Chassis_EffWz(Chassis_t * chassis, float yaw_deg)
 {
     /* 手动转向优先:操作手 wz 超死区 → 取消一切自动(定点转向/航向保持),回到手动,
        并锁到当前航向,释放后稳在最近角度 */
@@ -190,7 +213,7 @@ static float Chassis_EffWz(Chassis_t *chassis, float yaw_deg)
         chassis->turn_done_hold = 0U;
     }
 
-    /* 正在执行定点转向:用航向 PID 逼近目标角;到位(连续 N tick 在容差内)或超时即结束,
+    /* 正在执行定点转向:用梯形速度剖面逼近目标角;到位(连续 N tick 在容差内)或超时即结束,
        停、锁当前航向、重新武装下一指令 */
     if (chassis->turn_active)
     {
@@ -217,12 +240,16 @@ static float Chassis_EffWz(Chassis_t *chassis, float yaw_deg)
         }
         else
         {
-            /* 目标角折到 yaw 附近(避免 ±180 跳变),位置式 PID 输出角速度修正量。
-               转向方向由 CHASSIS_HEADING_SIGN 统一校准(与航向保持一致)。 */
-            chassis->heading_pid.SetVal = yaw_deg + err;
-            chassis->heading_pid.CurVal = yaw_deg;
-            return Clamp(CHASSIS_HEADING_SIGN * PID_Calculate(&chassis->heading_pid),
-                         -CHASSIS_HEADING_OUTPUT_LIMIT_DEG_S, CHASSIS_HEADING_OUTPUT_LIMIT_DEG_S);
+            /* 梯形速度剖面:大误差巡航,接近目标时恒减速到位(不拖尾、不超调)。
+               方向由 CHASSIS_HEADING_SIGN 统一校准(与航向保持一致);限幅用操作手
+               上限 WZ_MAX(巡航 300 在其内)。 */
+            float brake = CHASSIS_TURN_SPEED_DEG_S * CHASSIS_TURN_SPEED_DEG_S
+                        / (2.0f * CHASSIS_TURN_DECEL_DEG_S2); /* 刹车距离(deg) */
+            float mag = (fabsf(err) >= brake)
+                            ? CHASSIS_TURN_SPEED_DEG_S                      /* 巡航 */
+                            : sqrtf(2.0f * CHASSIS_TURN_DECEL_DEG_S2 * fabsf(err)); /* 恒减速 */
+            return Clamp(CHASSIS_HEADING_SIGN * ((err >= 0.0f) ? mag : -mag),
+                         -CHASSIS_WZ_MAX_DEG_S, CHASSIS_WZ_MAX_DEG_S);
         }
     }
 
@@ -247,6 +274,7 @@ void Chassis_Update(Chassis_t *chassis, float yaw_deg)
     float r;     /* 轮半径,mm */
     float L;     /* 等效回转半径,mm */
     float omega_fl, omega_fr, omega_rl, omega_rr;
+    float vx, vy; /* 车身系平移速度:mm/s(world_lock 时由世界系旋转而来) */
 
     if (chassis == NULL)
     {
@@ -263,11 +291,21 @@ void Chassis_Update(Chassis_t *chassis, float yaw_deg)
     L = CHASSIS_L_MM;
     w_rad = Chassis_EffWz(chassis, yaw_deg) * (PI / 180.0f);
 
+    /* 世界坐标系锁定:开启时把 vx/vy(世界系命令)旋转到车身系再解算;
+       wz 保持车体相对(天然如此,不受影响)。rel = 车身当前朝向 - 世界系基准朝向。 */
+    vx = chassis->vx;
+    vy = chassis->vy;
+    if (chassis->world_lock)
+    {
+        float rel = Chassis_WrapDeg(yaw_deg - chassis->world_lock_yaw);
+        Rotate(&vx, &vy, 0.0f, 0.0f, CHASSIS_DIR_LOCK_SIGN * rel);
+    }
+
     /* 运动学直接展开(真全向轮 45° 斜装,统一乘 1/√2 修正系数) */
-    omega_fl = (chassis->vx + chassis->vy + w_rad * L) / r * CHASSIS_OMNI_45_SCALE;
-    omega_fr = (-chassis->vx + chassis->vy + w_rad * L) / r * CHASSIS_OMNI_45_SCALE;
-    omega_rl = (chassis->vx - chassis->vy + w_rad * L) / r * CHASSIS_OMNI_45_SCALE;
-    omega_rr = (-chassis->vx - chassis->vy + w_rad * L) / r * CHASSIS_OMNI_45_SCALE;
+    omega_fl = (vx + vy + w_rad * L) / r * CHASSIS_OMNI_45_SCALE;
+    omega_fr = (-vx + vy + w_rad * L) / r * CHASSIS_OMNI_45_SCALE;
+    omega_rl = (vx - vy + w_rad * L) / r * CHASSIS_OMNI_45_SCALE;
+    omega_rr = (-vx - vy + w_rad * L) / r * CHASSIS_OMNI_45_SCALE;
 
     /* rad/s -> rpm,按象限顺序写入各轮 */
     Wheel_SetSpeed(&chassis->wheels[CHASSIS_WHEEL_FL], omega_fl * CHASSIS_RPM_PER_RAD_S);

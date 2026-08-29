@@ -50,11 +50,22 @@ extern "C"
 #define CHASSIS_HEADING_KI 0.0f              /* 积分(稳态漂移补偿;漂移先不管,置 0) */
 #define CHASSIS_HEADING_KD 0.4f              /* 微分(阻尼,抑制过冲) */
 #define CHASSIS_HEADING_OUTPUT_LIMIT_DEG_S 120.0f /* 航向修正最大可输出角速度 */
-#define CHASSIS_HEADING_SIGN -1.0f            /* 若转向反了,改成 -1.0f */
 
-/* 定点转向(目标 = 当前航向 ± 90°,纯自转;手动 wz 超死区即接管,见 Chassis_EffWz) */
+/* 航向保持 + 定点转向(车身自转)方向 = CHASSIS_HEADING_SIGN。
+   标定(关世界系锁定):使能后 wz=0,手推一下车再放手——回正到锁定方向=稳=>当前符号对;
+   若往反方向跑(发散)=> 改成 +1。turn_left/right 转向方向与此同号联调。 */
+#define CHASSIS_HEADING_SIGN -1.0f
+
+/* 世界系→车身系 平移旋转方向 = CHASSIS_DIR_LOCK_SIGN(专属宏,与自转方向独立)。*/
+#define CHASSIS_DIR_LOCK_SIGN +1.0f
+
+/* 定点转向(目标 = 当前航向 ± 90°,纯自转;手动 wz 超死区即接管)。
+   用梯形速度剖面执行取代位置式 PID;
+   独立于航向保持 PID(调快不牵连航向保持手感)。 */
 #define CHASSIS_TURN_ANGLE_DEG    90.0f   /* 定点转向角度,deg */
 #define CHASSIS_TURN_LEFT_DIR     1.0f    /* 左转方向(目标角增量符号);右转取其负;物理方向反了改 -1 */
+#define CHASSIS_TURN_SPEED_DEG_S  300.0f  /* 巡航角速度,°/s(快速档上限;纯自转 300°/s 轮速约 250rpm) */
+#define CHASSIS_TURN_DECEL_DEG_S2 1500.0f /* 末段恒减速度,°/s²(刹车距离 = V²/(2a) ≈ 30°) */
 #define CHASSIS_TURN_DONE_TOL_DEG 2.0f    /* 到位容差:|目标-当前| 小于该值视为接近 */
 #define CHASSIS_TURN_DONE_HOLDS   3U      /* 连续 N 个 tick 在容差内才算到位(防噪声提前停) */
 #define CHASSIS_TURN_TIMEOUT_TICKS 500U   /* 超时保护(200Hz 下 = 2.5s):到不了就强制停并锁当前 */
@@ -77,6 +88,9 @@ typedef struct
     PIDType heading_pid;      /* 航向保持闭环 PID */
     float   hold_yaw;         /* 锁定的航向,deg(IMU 相对上电零位) */
     bool    heading_lock_init; /* 是否已锁定(首次 hold / 转向后重新锁定用) */
+    /* 世界坐标系锁定(方向锁定)状态:1=平移按世界系解析 */
+    bool    world_lock;       /* 世界系是否激活 */
+    float   world_lock_yaw;   /* 世界系基准航向(deg,打开瞬间的 IMU 航向) */
     /* 定点转向(±90°)状态 */
     bool    turn_pending;     /* 收到了转向命令,待抓当前航向 */
     int8_t  turn_dir;         /* +1=左转90 / -1=右转90(目标角增量方向) */
@@ -103,6 +117,11 @@ void Chassis_Update(Chassis_t *chassis, float yaw_deg);
 /* 定点转向:dir = +1 左转90° / -1 右转90°(相对当前航向)。
    仅在底盘使能时接受;转进行中忽略新请求;手动 wz 超死区会取消。 */
 void Chassis_RequestTurn(Chassis_t *chassis, int8_t dir);
+
+/* 世界坐标系锁定:lock = 1 时把 vx/vy 参考系切到"世界系"(以打开瞬间车身朝向为 +x)。
+   每次 lock 由 0->1(上升沿)用 yaw_deg 重新冻结基准;仅作用于平移,wz 不受影响。 */
+void Chassis_SetWorldLock(Chassis_t *chassis, bool lock, float yaw_deg);
+bool Chassis_GetWorldLock(const Chassis_t *chassis);
 
 #ifdef __cplusplus
 }

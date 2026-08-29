@@ -206,20 +206,22 @@ void MyMsg_Pack(uint8_t *payload, const MyMsg_t *msg) { ... }
 | 2 | bool[16] | 1 bit | grip_close(灵石夹爪夹紧) |
 | .. | bool[17] | 1 bit | grip_release(灵石夹爪放开) |
 | .. | bool[18] | 1 bit | grip_zero(灵石夹爪回零) |
+| 2 | bool[19] | 1 bit | world_lock(世界坐标系锁定:1=世界系 / 0=车身系) |
 | 3 | float[0] | 4B 小端 | vx 纵向速度,mm/s |
 | 7 | float[1] | 4B 小端 | vy 横向速度,mm/s |
 | 11 | float[2] | 4B 小端 | wz 自转角速度,°/s |
 
-19 个 bool 打包进字节 0/1/2(LSB 在前):字节0 = enable/disable/reset/fast/turn_left90/turn_right90/mech_enable/mech_disable;
+20 个 bool 打包进字节 0/1/2(LSB 在前):字节0 = enable/disable/reset/fast/turn_left90/turn_right90/mech_enable/mech_disable;
 字节1 = mech_reset/left_work1/left_work2/right_work1/right_work2/left_pulldown/right_pulldown/grip_open;
-字节2 = grip_close/grip_release/grip_zero + 5 位保留。
+字节2 = grip_close/grip_release/grip_zero/world_lock + 4 位保留。
 
-**TX 状态(板子 → 上位机)**:body = 6 字节 = bool 打包区(2 bit,LSB 在前)+ mech_status(1 字节)+ yaw(4B 小端);其余 body 字节补 0。
+**TX 状态(板子 → 上位机)**:body = 6 字节 = bool 打包区(3 bit,LSB 在前)+ mech_status(1 字节)+ yaw(4B 小端);其余 body 字节补 0。
 
 | body 偏移 | 字段 | 类型 | 说明 |
 | --- | --- | --- | --- |
 | 0 | bool[0] | 1 bit | enable(当前使能状态) |
 | .. | bool[1] | 1 bit | fast(当前快速模式) |
+| .. | bool[2] | 1 bit | world_lock(世界系锁定当前是否激活) |
 | 1 | mech_status | 1B | 紧凑机构状态(位布局见 `Application/Mech/mech.h` 的 `MECH_STATUS_*`) |
 | 2 | yaw | 4B 小端 | IMU 航向遥测,deg,相对上电零位(wrap 到 [-180,180]) |
 

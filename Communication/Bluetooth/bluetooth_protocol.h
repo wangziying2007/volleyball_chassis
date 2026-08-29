@@ -53,8 +53,10 @@ extern "C" {
 /*                        [2]=reset 板子复位, [3]=fast 模式档,                   */
 /*                        [4]=turn_left90 左转90°, [5]=turn_right90 右转90°;      */
 /*                        bool[6..18]=机构 13 字段;                               */
+/*                        bool[19]=world_lock 世界系锁定(1=世界系/0=车身系);      */
 /*                        float[0]=vx(mm/s), [1]=vy(mm/s), [2]=wz(°/s)           */
 /*   TX 状态(BT_Status_t): bool[0]=enable 使能, [1]=fast 模式档,                  */
+/*                        bool[2]=lock_active 世界系锁定是否激活,                  */
 /*                        u8[0]=mech_status(紧凑机构状态),                        */
 /*                        float[0]=yaw(IMU 航向遥测, deg,相对上电零位)。           */
 /* ------------------------------------------------------------------ */
