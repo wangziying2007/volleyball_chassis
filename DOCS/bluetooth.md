@@ -80,8 +80,8 @@ Bluetooth_Receive(&frame, 超时ms);   // 收一条消息
 | 单(1) | 有 | 双(2) | 1+1+15+2+2 = 21 | 20 |
 | **单(1)** | 无 | **单(1)** | 1+15+2+1 = 19 | **1+15+1+1 = 18** |
 
-最后一行是本工程当前配置(单包头 `0xA5`、无包长字段、单包尾 `0x5A`、SUM8),
-**整帧固定 18 字节 / 包体 15 字节**。
+最后一行是本工程当前配置(单包头 `0xA5`、无包长字段、单包尾 `0x5A`、SUM8)。
+**收发方向各自用各自包长,不再补到同一长度**:命令帧(包体 15B)= 18 字节,状态帧(包体 6B)= 9 字节。
 
 补充说明:
 
@@ -177,9 +177,9 @@ void MyMsg_Pack(uint8_t *payload, const MyMsg_t *msg) { ... }
 把 `bluetooth_serv.h` 里 `BT_SERV_ENABLE` 改成 1,`Chassis_Task` 收命令并回传状态,
 用于验证整条链路。换真实协议时:改对应方向宏数量 → 改对应业务结构体 → 改 Pack/Parse 函数。
 
-> 省带宽:帧层默认 `BT_PAYLOAD_LENGTH = 0`(整帧固定 18 字节,包体 15 字节 = `BT_PROTO_PAYLOAD_MAX`;收发各方字段数量在 `Config/comm_config.h` 配,包体随较大方向取)。
-> 帧长 = 包头(1) + 包体(`BT_PROTO_PAYLOAD_MAX`) + 校验(1) + 包尾(1) = `BT_PROTO_PAYLOAD_MAX + 3`。
-> 改包体大小:改 `Config/comm_config.h` 的收发方向字段数量宏,`BT_PROTO_PAYLOAD_MAX` 随之变化,收发两边一起改。
+> 省带宽:帧层默认 `BT_PAYLOAD_LENGTH = 0`。**收发方向各自用各自包长**:RX(命令)包体 = `BT_PROTO_RX_PAYLOAD_SIZE`,TX(状态)包体 = `BT_PROTO_TX_PAYLOAD_SIZE`,互不补齐。
+> 帧长 = 包头(1) + 包体(`BT_PROTO_RX|TX_PAYLOAD_SIZE`) + 校验(1) + 包尾(1)。当前:命令帧 18 字节、状态帧 9 字节。
+> 改包体大小:改 `Config/comm_config.h` 的收发方向字段数量宏,对应方向的 `BT_PROTO_RX|TX_PAYLOAD_SIZE` 随之变化,收发两边一起改。
 
 ### 6.1 底盘命令/状态字段表
 
@@ -223,8 +223,8 @@ void MyMsg_Pack(uint8_t *payload, const MyMsg_t *msg) { ... }
 | 1 | mech_status | 1B | 紧凑机构状态(位布局见 `Application/Mech/mech.h` 的 `MECH_STATUS_*`) |
 | 2 | yaw | 4B 小端 | IMU 航向遥测,deg,相对上电零位(wrap 到 [-180,180]) |
 
-> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 15 字节、TX = 6 字节),
-> 收发两向取较大者得 `BT_PROTO_PAYLOAD_MAX` = 15 → 整帧 **18 字节**。
+> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 15 字节、TX = 6 字节)。
+> 收发方向各自用各自包长,不再补到同一长度:命令帧 **18 字节**(包体 15),状态帧 **9 字节**(包体 6)。
 
 ## 7. 常见问题
 

@@ -13,7 +13,7 @@
 #include "FD_Canqueue.h"
 
 /* UART 接收缓冲区,放 D2 段(0x30000000,DMA 可达且不经 D-Cache) */
-#define UART_RX_BUFFER_SIZE 64U
+#define UART_RX_BUFFER_SIZE 128U
 
 extern __RAM_D2_ ALIGN_32B uint8_t UART1_RxBuffer[UART_RX_BUFFER_SIZE];
 extern __RAM_D2_ ALIGN_32B uint8_t UART3_RxBuffer[UART_RX_BUFFER_SIZE];

@@ -51,11 +51,22 @@
 #define BT_HEADER_BYTES ((BT_FRAME_HEADER2 != 0U) ? 2U : 1U)                     /* 包头字节数(单/双) */
 #define BT_TAIL_BYTES   ((BT_FRAME_TAIL2 != 0U) ? 2U : 1U)                       /* 包尾字节数(单/双) */
 #define BT_PAYLOAD_OFFSET (BT_HEADER_BYTES + (BT_PAYLOAD_LENGTH ? 1U : 0U))      /* 包体起始位置:0 时无包长字段 */
-#define BT_FRAME_PAYLOAD_LEN (BT_PAYLOAD_LENGTH ? BT_PAYLOAD_LENGTH : BT_PROTO_PAYLOAD_MAX) /* 包体长度 */
-#define BT_FRAME_LEN (BT_PAYLOAD_OFFSET + BT_FRAME_PAYLOAD_LEN + BT_CHECKSUM_BYTES + BT_TAIL_BYTES) /* 整帧长度 */
-#define BT_CHECKSUM_LEN (BT_PAYLOAD_OFFSET - BT_HEADER_BYTES + BT_FRAME_PAYLOAD_LEN) /* 校验覆盖字节数:包长(如有) + 包体 */
-#define BT_CHECKSUM_POS (BT_FRAME_LEN - BT_CHECKSUM_BYTES - BT_TAIL_BYTES)       /* 校验起始位置(小端) */
-#define BT_TAIL_POS (BT_FRAME_LEN - BT_TAIL_BYTES)                               /* 包尾起始位置 */
+
+/* 收发方向各自用自己的包长(不再取 RX/TX 较大者补零):
+   RX(收,命令) 用 BT_PROTO_RX_PAYLOAD_SIZE;TX(发,状态) 用 BT_PROTO_TX_PAYLOAD_SIZE。
+   蓝牙帧不带包长/类型字段,收发角色固定即各自帧长固定,互不补齐。 */
+/* ---- RX(收)方向 ---- */
+#define BT_RX_FRAME_PAYLOAD_LEN (BT_PAYLOAD_LENGTH ? BT_PAYLOAD_LENGTH : BT_PROTO_RX_PAYLOAD_SIZE)
+#define BT_RX_FRAME_LEN (BT_PAYLOAD_OFFSET + BT_RX_FRAME_PAYLOAD_LEN + BT_CHECKSUM_BYTES + BT_TAIL_BYTES)
+#define BT_RX_CHECKSUM_LEN (BT_PAYLOAD_OFFSET - BT_HEADER_BYTES + BT_RX_FRAME_PAYLOAD_LEN)
+#define BT_RX_CHECKSUM_POS (BT_RX_FRAME_LEN - BT_CHECKSUM_BYTES - BT_TAIL_BYTES)
+#define BT_RX_TAIL_POS (BT_RX_FRAME_LEN - BT_TAIL_BYTES)
+/* ---- TX(发)方向 ---- */
+#define BT_TX_FRAME_PAYLOAD_LEN (BT_PAYLOAD_LENGTH ? BT_PAYLOAD_LENGTH : BT_PROTO_TX_PAYLOAD_SIZE)
+#define BT_TX_FRAME_LEN (BT_PAYLOAD_OFFSET + BT_TX_FRAME_PAYLOAD_LEN + BT_CHECKSUM_BYTES + BT_TAIL_BYTES)
+#define BT_TX_CHECKSUM_LEN (BT_PAYLOAD_OFFSET - BT_HEADER_BYTES + BT_TX_FRAME_PAYLOAD_LEN)
+#define BT_TX_CHECKSUM_POS (BT_TX_FRAME_LEN - BT_CHECKSUM_BYTES - BT_TAIL_BYTES)
+#define BT_TX_TAIL_POS (BT_TX_FRAME_LEN - BT_TAIL_BYTES)
 
 #if BT_PAYLOAD_LENGTH > BT_PROTO_PAYLOAD_MAX
 #error "BT_PAYLOAD_LENGTH 不能大于 BT_PROTO_PAYLOAD_MAX"
@@ -69,10 +80,10 @@ static QueueHandle_t s_bt_tx_queue;    /* 发送队列(完整帧) */
 static SemaphoreHandle_t s_bt_rx_sem;  /* 唤醒信号量:中断 → 接收任务 */
 static RingBuffer_t s_bt_ring;         /* 原始字节环形缓冲(中断写,任务读) */
 static uint8_t s_bt_ring_buf[BT_RX_RING_SIZE];
-static uint8_t s_rx_frame[BT_FRAME_LEN]; /* 正在拼接的帧 */
+static uint8_t s_rx_frame[BT_RX_FRAME_LEN]; /* 正在拼接的帧 */
 static uint16_t s_rx_pos = 0;            /* 已拼入的字节数 */
 
-static __RAM_D2_ ALIGN_32B uint8_t s_tx_buffer[BT_FRAME_LEN]; /* DMA 发送缓冲(D2 段) */
+static __RAM_D2_ ALIGN_32B uint8_t s_tx_buffer[BT_TX_FRAME_LEN]; /* DMA 发送缓冲(D2 段) */
 static volatile bool s_tx_busy = false;                       /* DMA 忙标志,发送完成中断里清 */
 static bool s_bt_init_done = false;
 
@@ -85,12 +96,12 @@ static bool Bluetooth_CheckFrame(const uint8_t *frame)
 {
     /* 包尾(单/双) */
 #if BT_TAIL_BYTES == 2
-    if ((frame[BT_TAIL_POS] != BT_FRAME_TAIL1) || (frame[BT_TAIL_POS + 1] != BT_FRAME_TAIL2))
+    if ((frame[BT_RX_TAIL_POS] != BT_FRAME_TAIL1) || (frame[BT_RX_TAIL_POS + 1] != BT_FRAME_TAIL2))
     {
         return false;
     }
 #else
-    if (frame[BT_TAIL_POS] != BT_FRAME_TAIL1)
+    if (frame[BT_RX_TAIL_POS] != BT_FRAME_TAIL1)
     {
         return false;
     }
@@ -109,16 +120,16 @@ static bool Bluetooth_CheckFrame(const uint8_t *frame)
     /* 校验:范围 = 包长(如有) + 包体,从包头后起算 */
 #if BT_CHECKSUM_MODE == 0U
     /* CRC16:小端 2 字节 */
-    uint16_t crc_rx = (uint16_t)(frame[BT_CHECKSUM_POS] | ((uint16_t)frame[BT_CHECKSUM_POS + 1] << 8));
-    return (crc_ccitt(0xFFFF, &frame[BT_HEADER_BYTES], BT_CHECKSUM_LEN) == crc_rx);
+    uint16_t crc_rx = (uint16_t)(frame[BT_RX_CHECKSUM_POS] | ((uint16_t)frame[BT_RX_CHECKSUM_POS + 1] << 8));
+    return (crc_ccitt(0xFFFF, &frame[BT_HEADER_BYTES], BT_RX_CHECKSUM_LEN) == crc_rx);
 #else
     /* 单字节校验和:覆盖字节求和,取低 8 位 */
     uint8_t sum = 0;
-    for (uint16_t i = 0U; i < BT_CHECKSUM_LEN; i++)
+    for (uint16_t i = 0U; i < BT_RX_CHECKSUM_LEN; i++)
     {
         sum += frame[BT_HEADER_BYTES + i];
     }
-    return (sum == frame[BT_CHECKSUM_POS]);
+    return (sum == frame[BT_RX_CHECKSUM_POS]);
 #endif
 }
 
@@ -127,8 +138,8 @@ static void Bluetooth_PushRxFrame(const uint8_t *frame)
 {
     BluetoothFrame_t out;
 
-    out.length = BT_FRAME_PAYLOAD_LEN;
-    memcpy(out.payload, &frame[BT_PAYLOAD_OFFSET], BT_FRAME_PAYLOAD_LEN);
+    out.length = BT_RX_FRAME_PAYLOAD_LEN;
+    memcpy(out.payload, &frame[BT_PAYLOAD_OFFSET], BT_RX_FRAME_PAYLOAD_LEN);
 
     /* 队列满了就丢这一帧(业务层来不及处理时丢新帧,不影响后续帧) */
     (void)xQueueSend(s_bt_rx_queue, &out, 0);
@@ -169,9 +180,9 @@ static void Bluetooth_RxByte(uint8_t b)
     }
 #endif
 
-    /* 收满一帧就校验(BT_FRAME_LEN 为编译期常量) */
+    /* 收满一帧就校验(BT_RX_FRAME_LEN 为编译期常量) */
     s_rx_frame[s_rx_pos++] = b;
-    if (s_rx_pos >= BT_FRAME_LEN)
+    if (s_rx_pos >= BT_RX_FRAME_LEN)
     {
         if (Bluetooth_CheckFrame(s_rx_frame))
         {
@@ -243,26 +254,26 @@ static void Bluetooth_BuildTxFrame(const BluetoothFrame_t *frame, uint8_t *buf)
 #if BT_PAYLOAD_LENGTH > 0
     buf[BT_HEADER_BYTES] = BT_PAYLOAD_LENGTH;
 #endif
-    memcpy(&buf[BT_PAYLOAD_OFFSET], frame->payload, BT_FRAME_PAYLOAD_LEN);
+    memcpy(&buf[BT_PAYLOAD_OFFSET], frame->payload, BT_TX_FRAME_PAYLOAD_LEN);
 
     /* 校验:范围 = 包长(如有) + 包体,从包头后起算 */
 #if BT_CHECKSUM_MODE == 0U
-    uint16_t crc = crc_ccitt(0xFFFF, &buf[BT_HEADER_BYTES], BT_CHECKSUM_LEN);
-    buf[BT_CHECKSUM_POS] = (uint8_t)(crc & 0xFF);
-    buf[BT_CHECKSUM_POS + 1] = (uint8_t)(crc >> 8);
+    uint16_t crc = crc_ccitt(0xFFFF, &buf[BT_HEADER_BYTES], BT_TX_CHECKSUM_LEN);
+    buf[BT_TX_CHECKSUM_POS] = (uint8_t)(crc & 0xFF);
+    buf[BT_TX_CHECKSUM_POS + 1] = (uint8_t)(crc >> 8);
 #else
     uint8_t sum = 0;
-    for (uint16_t i = 0U; i < BT_CHECKSUM_LEN; i++)
+    for (uint16_t i = 0U; i < BT_TX_CHECKSUM_LEN; i++)
     {
         sum += buf[BT_HEADER_BYTES + i];
     }
-    buf[BT_CHECKSUM_POS] = sum;
+    buf[BT_TX_CHECKSUM_POS] = sum;
 #endif
 
     /* 包尾(单/双) */
-    buf[BT_TAIL_POS] = BT_FRAME_TAIL1;
+    buf[BT_TX_TAIL_POS] = BT_FRAME_TAIL1;
 #if BT_TAIL_BYTES == 2
-    buf[BT_TAIL_POS + 1] = BT_FRAME_TAIL2;
+    buf[BT_TX_TAIL_POS + 1] = BT_FRAME_TAIL2;
 #endif
 }
 
@@ -282,11 +293,11 @@ static void Bluetooth_TxTask(void *argument)
 
         /* 组帧 → 刷 D-Cache → 启动 DMA */
         Bluetooth_BuildTxFrame(&frame, s_tx_buffer);
-        SCB_CleanDCache_by_Addr((uint32_t *)s_tx_buffer, BT_FRAME_LEN);
+        SCB_CleanDCache_by_Addr((uint32_t *)s_tx_buffer, BT_TX_FRAME_LEN);
 
         s_tx_busy = true;
         if (HAL_UART_Transmit_DMA(&BOARD_BLUETOOTH_UART, s_tx_buffer,
-                                  BT_FRAME_LEN) != HAL_OK)
+                                  BT_TX_FRAME_LEN) != HAL_OK)
         {
             s_tx_busy = false; /* 启动失败,直接处理下一帧 */
             continue;
@@ -313,7 +324,7 @@ void Bluetooth_UartTxCplt(void)
    length 是本帧有效数据长度(<= 包体长度,多余字节补 0 一起发出)。 */
 bool Bluetooth_Send(const uint8_t *payload, uint16_t length)
 {
-    if ((payload == NULL) || (length == 0U) || (length > BT_FRAME_PAYLOAD_LEN))
+    if ((payload == NULL) || (length == 0U) || (length > BT_TX_FRAME_PAYLOAD_LEN))
     {
         return false;
     }

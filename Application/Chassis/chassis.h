@@ -50,7 +50,7 @@ extern "C"
 #define CHASSIS_HEADING_KI 0.0f              /* 积分(稳态漂移补偿;漂移先不管,置 0) */
 #define CHASSIS_HEADING_KD 0.4f              /* 微分(阻尼,抑制过冲) */
 #define CHASSIS_HEADING_OUTPUT_LIMIT_DEG_S 120.0f /* 航向修正最大可输出角速度 */
-#define CHASSIS_HEADING_SIGN 1.0f            /* 若转向反了,改成 -1.0f */
+#define CHASSIS_HEADING_SIGN -1.0f            /* 若转向反了,改成 -1.0f */
 
 /* 定点转向(目标 = 当前航向 ± 90°,纯自转;手动 wz 超死区即接管,见 Chassis_EffWz) */
 #define CHASSIS_TURN_ANGLE_DEG    90.0f   /* 定点转向角度,deg */

@@ -56,16 +56,16 @@ const osThreadAttr_t ChassisTask_attributes = {
 /* Definitions for AlarmTask */
 osThreadId_t AlarmTaskHandle;
 const osThreadAttr_t AlarmTask_attributes = {
-    .name = "AlarmTask",
-    .stack_size = 64 * 4,
-    .priority = (osPriority_t)osPriorityBelowNormal,
+  .name = "AlarmTask",
+  .stack_size = 64 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal,
 };
 /* Definitions for VOFASendTask */
 osThreadId_t VOFASendTaskHandle;
 const osThreadAttr_t VOFASendTask_attributes = {
-    .name = "VOFASendTask",
-    .stack_size = 80 * 4,
-    .priority = (osPriority_t)osPriorityNormal,
+  .name = "VOFASendTask",
+  .stack_size = 64 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,12 +80,11 @@ void VOFA_SendTask(void *argument);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /**
- * @brief  FreeRTOS initialization
- * @param  None
- * @retval None
- */
-void MX_FREERTOS_Init(void)
-{
+  * @brief  FreeRTOS initialization
+  * @param  None
+  * @retval None
+  */
+void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
   /* 任务在 CubeMX 里创建,这里不需要额外初始化 */
 
@@ -122,6 +121,7 @@ void MX_FREERTOS_Init(void)
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
   /* USER CODE END RTOS_EVENTS */
+
 }
 
 /* USER CODE BEGIN Header_Alarm_Task */
@@ -173,3 +173,4 @@ __weak void Chassis_Task(void *argument)
   /* USER CODE END Chassis_Task */
 }
 /* USER CODE END Application */
+
