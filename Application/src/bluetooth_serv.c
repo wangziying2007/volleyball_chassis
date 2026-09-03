@@ -26,8 +26,8 @@ static void BT_Cmd_Parse(const uint8_t *payload, BT_Cmd_t *cmd)
     uint8_t bool_cnt = 0U;
     uint8_t f32_cnt  = 0U;
     /* 命令字段(顺序须与 comm_config.h 的 BT_PROTO_RX_* 一致):
-       bool[0..19] = enable/disable/reset/fast/turn_left90/turn_right90 + 机构 13 字段 + lock,
-       float[0..2] = vx/vy/wz */
+       bool[0..20] = enable/disable/reset/fast/turn_left90/turn_right90 + 机构 13 字段 + lock/tune,
+       float[0..4] = vx/vy/wz/vel_p/vel_i */
     cmd->enable         = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->disable        = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->reset          = BT_Proto_RX_ReadBool(payload, bool_cnt++);
@@ -48,9 +48,12 @@ static void BT_Cmd_Parse(const uint8_t *payload, BT_Cmd_t *cmd)
     cmd->grip_release   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->grip_zero      = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->lock           = BT_Proto_RX_ReadBool(payload, bool_cnt++);
+    cmd->tune           = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->vx             = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
     cmd->vy             = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
     cmd->wz             = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
+    cmd->vel_p          = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
+    cmd->vel_i          = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
 }
 
 /* 发送:状态帧打包(TX) */

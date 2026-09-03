@@ -123,6 +123,10 @@ void Chassis_RequestTurn(Chassis_t *chassis, int8_t dir);
 void Chassis_SetWorldLock(Chassis_t *chassis, bool lock, float yaw_deg);
 bool Chassis_GetWorldLock(const Chassis_t *chassis);
 
+/* 底盘四轮速度环 P/I 调参(蓝牙手调):把 vel_p/vel_i(量程[0,100])写给每个绑定的电调速度环。
+   只写 RAM(立即生效),不触发 flash 保存;不要求底盘使能,掉电即回调到电调默认值。 */
+void Chassis_TuneWheelPID(Chassis_t *chassis, float vel_p, float vel_i);
+
 #ifdef __cplusplus
 }
 #endif

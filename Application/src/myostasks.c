@@ -69,6 +69,7 @@ void Chassis_Task(void *argument)
     static float last_yaw = 0.0f;        /* IMU 最近航向(deg),给航向保持/定点转向 + 状态回传 */
     static bool prev_turn_left = false;  /* 左转按钮上一帧状态(边沿检测) */
     static bool prev_turn_right = false; /* 右转按钮上一帧状态(边沿检测) */
+    static bool prev_tune = false;       /* 调参按钮上一帧状态(边沿检测) */
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(5);
@@ -134,6 +135,15 @@ void Chassis_Task(void *argument)
                 else if (turnR_edge)
                 {
                     Chassis_RequestTurn(&chassis, -1); /* -1 = 右转90° */
+                }
+
+                /* 调参按钮:上升沿 → 把 vel_p/vel_i 应用给四轮速度环(RAM,立即生效)。
+                   仅当调参按钮保持 0→1 的瞬间执行一次,避免连续帧重复下发。 */
+                bool tune_edge = cmd.tune && !prev_tune;
+                prev_tune = cmd.tune;
+                if (tune_edge)
+                {
+                    Chassis_TuneWheelPID(&chassis, cmd.vel_p, cmd.vel_i);
                 }
 
                 /* 机构按键:边沿检测 → 暂存 CAN1 命令(实际发送由 TIM2 里 Mech_Func 完成) */

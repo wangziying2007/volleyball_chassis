@@ -192,4 +192,9 @@ main()
 - 职责:蓝牙 13 个机构按键(2 吸盘臂取/放/放气 + 灵石夹爪张/夹/放/回零 + 使能/失能/复位)→ 按键上升沿 → 暂存一条 CAN1 命令 → TIM2 200Hz `Mech_Func()` 以**扩展帧** `0x010105xx` 发出;
 - 接收:FDCAN1 RX 中断 `Mech_IsOurs()` 过滤从板反馈 `0x050101xx` → `Mech_OnFeedback()` 更新状态 → `Mech_GetStatus()` 供蓝牙 TX 回传 `mech_status`(左臂/右臂/夹爪各 2 bit + 使能 + 错误);
 - 并发:任务 `Mech_PollButtons` 只写暂存项,ISR `Mech_Func()` 读取并入队(CAN1_Txqueue),与电机"任务写目标、ISR 发帧"一致;
-- 从板做状态机,主控只做"按键→命令码"映射;从板在开发,命令/反馈表见 [B2通信协议.md](B2通信协议.md)。
+- 从板做状态机,主控只做"按键→命令码"映射;从板在开发,命令/反馈表见 [B2通信协议v1.1.md](B2通信协议v1.1.md)。
+
+### 9.4 底盘定点转向 / 世界系锁定 / 速度环调参
+- **定点转向(±90°)**:蓝牙 `turn_left90/turn_right90` 边沿触发 → `Chassis_RequestTurn` 抓当前航向,目标 = 当前 ±90°;用**梯形速度剖面**(巡航 `CHASSIS_TURN_SPEED_DEG_S` + 末段恒减速 `CHASSIS_TURN_DECEL_DEG_S2`)逼近,到位(连续 N tick 在容差内)或超时即停并重新锁向。仅使能时生效;手动 `wz` 超死区立即接管。方向由 `CHASSIS_HEADING_SIGN` 校准。
+- **世界系锁定(方向锁定)**:蓝牙 `world_lock` 上升沿用当前 IMU 航向冻结世界系基准 `world_lock_yaw`;开启时把 `vx/vy` 按 `yaw - world_lock_yaw` 旋到车身系再解算(`Chassis_Update`),平移方向不受车身朝向影响,仅作用于平移与 `wz` 正交。
+- **速度环 P/I 调参**:蓝牙 `tune` 上升沿 → `Chassis_TuneWheelPID(vel_p, vel_i)` clamp 到量程后经 `ZdriveSet` 写四轮电调速度环(RAM 生效,落 flash 需另发 `Zdrive_SaveSetting`)。

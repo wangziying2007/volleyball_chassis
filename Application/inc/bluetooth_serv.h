@@ -63,10 +63,13 @@ typedef struct {
     bool     grip_release;    /* flag 17: 夹爪放开(放灵石) */
     bool     grip_zero;       /* flag 18: 夹爪回零 */
     bool     lock;            /* flag 19: 世界坐标系锁定(1=世界系,0=车身系;上升沿重新冻结基准) */
+    bool     tune;            /* flag 20: 速度环 P/I 调参(上升沿把 vel_p/vel_i 应用给四轮电调) */
     /* 目标速度 */
     float    vx;      /* 目标纵向速度,mm/s */
     float    vy;      /* 目标横向速度,mm/s */
     float    wz;      /* 目标自转角速度,deg/s */
+    float    vel_p;   /* 速度环 P(tune 触发;量程[0,100],RAM 生效不落 flash) */
+    float    vel_i;   /* 速度环 I(tune 触发;量程[0,100],RAM 生效不落 flash) */
 } BT_Cmd_t;
 
 /* ------------------------------------------------------------------ */

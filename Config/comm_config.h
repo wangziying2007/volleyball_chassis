@@ -22,11 +22,11 @@ extern "C"
 /* ------------------------------------------------------------------ */
 
 /* ---- RX(接收)方向 ---- */
-/* 命令字段:bool[20]=底盘(enable/disable/reset/fast/turn_left90/turn_right90/world_lock) + 机构(mech_enable/mech_disable/
+/* 命令字段:bool[21]=底盘(enable/disable/reset/fast/turn_left90/turn_right90/world_lock/tune) + 机构(mech_enable/mech_disable/
    mech_reset/left_work1/left_work2/right_work1/right_work2/left_pulldown/right_pulldown/
-   grip_open/grip_close/grip_release/grip_zero);float[3]=vx/vy/wz */
+   grip_open/grip_close/grip_release/grip_zero);float[5]=vx/vy/wz/vel_p/vel_i */
 #ifndef BT_PROTO_RX_BOOL_NUM
-#define BT_PROTO_RX_BOOL_NUM   20U  /* bool 数量:底盘 7 + 机构 13 */
+#define BT_PROTO_RX_BOOL_NUM   21U  /* bool 数量:底盘 8 + 机构 13 */
 #endif
 #ifndef BT_PROTO_RX_U8_NUM
 #define BT_PROTO_RX_U8_NUM     0U   /* u8 数量 */
@@ -38,7 +38,7 @@ extern "C"
 #define BT_PROTO_RX_U32_NUM    0U   /* u32 数量 */
 #endif
 #ifndef BT_PROTO_RX_FLOAT_NUM
-#define BT_PROTO_RX_FLOAT_NUM  3U   /* float 数量:vx / vy / wz */
+#define BT_PROTO_RX_FLOAT_NUM  5U   /* float 数量:vx/vy/wz + vel_p/vel_i(速度环 P/I 调参) */
 #endif
 
 /* ---- TX(发送)方向 ---- */

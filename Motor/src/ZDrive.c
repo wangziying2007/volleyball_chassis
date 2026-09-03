@@ -343,25 +343,25 @@ void ZdriveParamConfig(uint8_t id, ZdriveParam param)
 
     p = &Zmotor[id - 1U].param;
 
-    /* 哪一项 PID 有改动就下发哪一项 */
+    /* 哪一项 PID 有改动就下发哪一项(先 clamp 到量程,再用于下发和缓存) */
     if (param.kpPos != p->kpPos)
     {
-        Clamp(param.kpPos, 0.0f, 20.0f);
+        param.kpPos = Clamp(param.kpPos, 0.0f, 20.0f);
         ZdriveSet(param.kpPos, id, Pos_PID_P);
     }
     if (param.kdPos != p->kdPos)
     {
-        Clamp(param.kdPos, 0.0f, 20.0f);
+        param.kdPos = Clamp(param.kdPos, 0.0f, 20.0f);
         ZdriveSet(param.kdPos, id, Pos_PID_D);
     }
     if (param.kpVel != p->kpVel)
     {
-        Clamp(param.kpVel, 0.0f, 100.0f);
+        param.kpVel = Clamp(param.kpVel, 0.0f, 100.0f);
         ZdriveSet(param.kpVel, id, Vel_PID_P);
     }
     if (param.kiVel != p->kiVel)
     {
-        Clamp(param.kiVel, 0.0f, 100.0f);
+        param.kiVel = Clamp(param.kiVel, 0.0f, 100.0f);
         ZdriveSet(param.kiVel, id, Vel_PID_I);
     }
 

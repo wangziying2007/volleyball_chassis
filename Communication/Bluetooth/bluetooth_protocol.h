@@ -54,7 +54,9 @@ extern "C" {
 /*                        [4]=turn_left90 左转90°, [5]=turn_right90 右转90°;      */
 /*                        bool[6..18]=机构 13 字段;                               */
 /*                        bool[19]=world_lock 世界系锁定(1=世界系/0=车身系);      */
-/*                        float[0]=vx(mm/s), [1]=vy(mm/s), [2]=wz(°/s)           */
+/*                        bool[20]=tune 速度环P/I调参(上升沿应用);                */
+/*                        float[0]=vx(mm/s), [1]=vy(mm/s), [2]=wz(°/s),          */
+/*                        float[3]=vel_p, [4]=vel_i(速度环 P/I, 量程[0,100])      */
 /*   TX 状态(BT_Status_t): bool[0]=enable 使能, [1]=fast 模式档,                  */
 /*                        bool[2]=lock_active 世界系锁定是否激活,                  */
 /*                        u8[0]=mech_status(紧凑机构状态),                        */

@@ -186,6 +186,34 @@ bool Chassis_GetWorldLock(const Chassis_t *chassis)
     return (chassis != NULL) && chassis->world_lock;
 }
 
+/* 底盘四轮速度环 P/I 调参(蓝牙手调):clamp 到电调量程,写给每个绑定的电机。
+   只写 RAM(立即生效),不触发 flash 保存;掉电即回调到电调默认值(见 ZDrive 手册)。 */
+void Chassis_TuneWheelPID(Chassis_t *chassis, float vel_p, float vel_i)
+{
+    uint8_t i;
+
+    if (chassis == NULL)
+    {
+        return;
+    }
+
+    const float vp = Clamp(vel_p, 0.0f, 100.0f);
+    const float vi = Clamp(vel_i, 0.0f, 100.0f); 
+
+    for (i = 0; i < 4U; i++)
+    {
+        Zdrive *m = chassis->wheels[i].motor;
+        if (m == NULL)
+        {
+            continue;
+        }
+        m->param.kpVel = vp;
+        m->param.kiVel = vi;
+        ZdriveSet(vp, m->param.zdrive_id, Vel_PID_P);
+        ZdriveSet(vi, m->param.zdrive_id, Vel_PID_I);
+    }
+}
+
 /* 计算用于运动学的有效 wz(操作手 wz、定点转向或航向保持修正量)。
    yaw_deg = IMU 航向(deg,相对上电零位)。 */
 static float Chassis_EffWz(Chassis_t * chassis, float yaw_deg)
