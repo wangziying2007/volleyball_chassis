@@ -67,12 +67,13 @@ void Chassis_Task(void *argument)
     (void)argument;
     static Chassis_t chassis;
     static float last_yaw = 0.0f;        /* IMU 最近航向(deg),给航向保持/定点转向 + 状态回传 */
+    static float last_wz = 0.0f;         /* IMU 最近 yaw 角速度(deg/s),给级联内环速度 PID 闭环 */
     static bool prev_turn_left = false;  /* 左转按钮上一帧状态(边沿检测) */
     static bool prev_turn_right = false; /* 右转按钮上一帧状态(边沿检测) */
     static bool prev_tune = false;       /* 调参按钮上一帧状态(边沿检测) */
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(5);
+    const TickType_t xFrequency = pdMS_TO_TICKS(1); /* 1000Hz 控制环(见 ADR-0005) */
     TickType_t last_cmd_tick = xTaskGetTickCount(); /* 最近一次收到底盘命令的时刻,用于掉线超时急停 */
 
     /* 自动绑定 Zmotor[0..3],顺序 = 右手系象限顺序(见 chassis.h) */
@@ -82,11 +83,13 @@ void Chassis_Task(void *argument)
     {
         TickType_t now = xTaskGetTickCount();
 
-        /* 读 IMU 最新航向(°,相对上电零位):给航向保持/定点转向/世界系锁定 + 状态回传用 */
+        /* 读 IMU 最新航向(°,相对上电零位):给航向保持/定点转向/世界系锁定 + 状态回传用;
+           同时取 yaw 角速度(deg/s),给级联内环速度 PID 闭环用。 */
         ImuData_t imu;
         if (Imu_Receive(&imu, 0))
         {
             last_yaw = imu.body_orientation[2];
+            last_wz = imu.body_rate[2];
         }
 
         BT_Cmd_t cmd;
@@ -194,8 +197,9 @@ void Chassis_Task(void *argument)
 
         /* 周期解算:使能时按 vx/vy/wz 算轮速写入 Zmotor[].valSetNow.speed_rpm,
            失能时全轮置 0;实际 CAN 发送由 TIM2 里 ZdriveFunc() 完成。
-           传入 yaw_deg 后,底盘在 wz≈0 时用 IMU 维持航向(纠正漂移/跑偏) */
-        Chassis_Update(&chassis, last_yaw);
+           传入 yaw_deg(航向) + wz_deg_s(IMU 实测角速度):底盘在 wz≈0 时用 IMU 维持航向、
+           级联内环速度 PID 用 IMU 角速度闭环(纠正漂移/跑偏 + 抑制过冲)。 */
+        Chassis_Update(&chassis, last_yaw, last_wz);
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }

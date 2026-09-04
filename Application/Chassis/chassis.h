@@ -36,11 +36,18 @@ extern "C"
 #define CHASSIS_HALF_LENGTH_X_MM 187.5f   /* 轮距纵向半长,mm(四轮中心矩形 X 向一半) */
 #define CHASSIS_HALF_LENGTH_Y_MM 187.5f   /* 轮距横向半长,mm(Y 向一半) */
 #define CHASSIS_L_MM (CHASSIS_HALF_LENGTH_X_MM + CHASSIS_HALF_LENGTH_Y_MM) /* 等效回转半径 L */
-#define CHASSIS_VX_MAX_MM_S   1800.0f   /* vx 限幅,mm/s */
-#define CHASSIS_VY_MAX_MM_S   1800.0f   /* vy 限幅,mm/s */
+#define CHASSIS_VX_MAX_MM_S   1800.0f   /* vx 输入限幅,mm/s(也是映射满刻度) */
+#define CHASSIS_VY_MAX_MM_S   1800.0f   /* vy 输入限幅,mm/s */
 #define CHASSIS_WZ_MAX_DEG_S  360.0f    /* wz 限幅,°/s */
 #define CHASSIS_MODE_FAST_SCALE 1.0f    /* 快速档缩放(线+角速度同比) */
 #define CHASSIS_MODE_SLOW_SCALE 0.25f   /* 慢速档缩放 */
+
+/* 速度输入非线性映射:一条二次曲线,低端细腻(可控)、高端冲到 2000(顶级提升)。
+   档位缩放作用在曲线上:fast ×1.0 → 顶级 2000;slow ×0.25 → 顶级 500。
+   wz 保持线性(独立刻度,不映射)。映射输入 = 摇杆原始值(clamp 到限幅)。
+   顶级 2000 mm/s 时最差轮约 670rpm(比 1800 时 +7%),见实车电机红线核验。 */
+#define CHASSIS_MAP_MAX    1800.0f   /* 映射满刻度输入(= vx/vy 限幅),mm/s */
+#define CHASSIS_MAP_BOOST  200.0f    /* 高速端额外增益:顶级 = MAP_MAX + MAP_BOOST = 2000 mm/s */
 
 /* ------------------------------------------------------------------ */
 /* 航向保持闭环(方案 A:操作手 wz≈0 时,用 IMU 航向锁定并把车稳在锁定方向)     */
@@ -67,8 +74,32 @@ extern "C"
 #define CHASSIS_TURN_SPEED_DEG_S  300.0f  /* 巡航角速度,°/s(快速档上限;纯自转 300°/s 轮速约 250rpm) */
 #define CHASSIS_TURN_DECEL_DEG_S2 1500.0f /* 末段恒减速度,°/s²(刹车距离 = V²/(2a) ≈ 30°) */
 #define CHASSIS_TURN_DONE_TOL_DEG 2.0f    /* 到位容差:|目标-当前| 小于该值视为接近 */
-#define CHASSIS_TURN_DONE_HOLDS   3U      /* 连续 N 个 tick 在容差内才算到位(防噪声提前停) */
-#define CHASSIS_TURN_TIMEOUT_TICKS 500U   /* 超时保护(200Hz 下 = 2.5s):到不了就强制停并锁当前 */
+#define CHASSIS_TURN_DONE_HOLDS   15U     /* 连续 N 个 tick 在容差内才算到位(1000Hz 下 = 15ms,防噪声提前停) */
+#define CHASSIS_TURN_TIMEOUT_TICKS 2500U  /* 超时保护(1000Hz 下 = 2.5s):到不了就强制停并锁当前 */
+
+/* ------------------------------------------------------------------ */
+/* yaw 级联双环控制(内环 = 速度 PID,IMU 角速度闭环)                        */
+/*   外环(按意图分两种形状,共用以下内环):                               */
+/*     定向转向 = 梯形速度剖面(大误差巡航 + 恒减速到位,见上 CHASSIS_TURN_*); */
+/*     航向保持 = 位置 PID(温和修正,见上 CHASSIS_HEADING_*);            */
+/*   内环 = 速度 PID:把外环目标角速度与 IMU 实测角速度(wz_real)的误差      */
+/*         → 最终 wz 命令(kinematics 域,方向共用 CHASSIS_HEADING_SIGN)。  */
+/*   到位死区:位置误差 < CHASSIS_YAW_DEADBAND_DEG 时内环输出归 0,防抖动。  */
+/*   内环增益按 IMU ~200Hz 反馈保守校(实测微调),见 ADR-0005。           */
+/* ------------------------------------------------------------------ */
+#define CHASSIS_YAW_KP_VEL 1.4f   /* 内环(速度)P:输出(°/s) / 角速度误差(°/s) */
+#define CHASSIS_YAW_KI_VEL 0.5f   /* 内环(速度)I:消稳态角速度误差 */
+#define CHASSIS_YAW_KD_VEL 0.0f   /* 内环(速度)D */
+#define CHASSIS_YAW_DEADBAND_DEG 0.5f /* 位置误差死区(deg):进入后内环输出归 0,防到位抖动/爬行 */
+
+/* yaw 级联内环(速度)状态 */
+typedef struct
+{
+    PIDType pid_vel;   /* 内环:速度 PID(PIDPOS),角速度误差(目标-实测)→ wz 命令 */
+    float   wz_real;   /* 实测角速度,deg/s(IMU body_rate[2],yaw 域) */
+    float   wz_target; /* 外环输出:目标角速度,deg/s(yaw 域) */
+    float   wz_cmd;    /* 内环输出:最终自转角速度命令,deg/s(kinematics 域,含 HEADING_SIGN) */
+} YawCtrl_t;
 
 /* 轮子索引(右手系象限顺序,见文件头注释) */
 #define CHASSIS_WHEEL_FL 0
@@ -85,9 +116,10 @@ typedef struct
     float   vx;        /* 目标纵向速度,mm/s */
     float   vy;        /* 目标横向速度,mm/s */
     float   wz;        /* 目标自转角速度,deg/s */
-    PIDType heading_pid;      /* 航向保持闭环 PID */
+    PIDType heading_pid;      /* 级联外环:航向保持位置 PID(温和修正,输出 yaw 域目标角速度) */
     float   hold_yaw;         /* 锁定的航向,deg(IMU 相对上电零位) */
     bool    heading_lock_init; /* 是否已锁定(首次 hold / 转向后重新锁定用) */
+    YawCtrl_t yaw_ctrl;       /* 级联内环:速度 PID(IMU wz 闭环,航向保持/定向转向共用) */
     /* 世界坐标系锁定(方向锁定)状态:1=平移按世界系解析 */
     bool    world_lock;       /* 世界系是否激活 */
     float   world_lock_yaw;   /* 世界系基准航向(deg,打开瞬间的 IMU 航向) */
@@ -112,8 +144,9 @@ void Chassis_SetMode(Chassis_t *chassis, bool fast);   /* fast:1=快速 / 0=慢�
 bool Chassis_IsEnabled(const Chassis_t *chassis);
 bool Chassis_GetFast(const Chassis_t *chassis);
 void Chassis_Reset(Chassis_t *chassis);
-/* yaw_deg = IMU 测量航向(deg,相对上电零位):wz≈0 时用其做航向保持闭环 */
-void Chassis_Update(Chassis_t *chassis, float yaw_deg);
+/* yaw_deg = IMU 测量航向(deg,相对上电零位);wz_deg_s = IMU 实测 yaw 角速度(deg/s)。
+   yaw_deg 供航向保持/定点转向/世界系锁定;wz_deg_s 供级联内环速度 PID 闭环(IMU 反馈)。 */
+void Chassis_Update(Chassis_t *chassis, float yaw_deg, float wz_deg_s);
 /* 定点转向:dir = +1 左转90° / -1 右转90°(相对当前航向)。
    仅在底盘使能时接受;转进行中忽略新请求;手动 wz 超死区会取消。 */
 void Chassis_RequestTurn(Chassis_t *chassis, int8_t dir);
