@@ -97,7 +97,8 @@ static float Chassis_SpeedMap(float v)
 
 /* 入参为操作手原始 vx / vy / wz(mm/s、°/s):
    vx/vy 先 clamp 到映射满刻度,再过二次映射,最后乘档位缩放(顶级 fast 2000 / slow 500);
-   wz 保持线性 + 档位缩放(独立刻度)。
+   wz 保持线性 + 档位缩放(独立刻度)。操作手帧→底盘帧的 180° 旋转(CHASSIS_OP_FRAME_SIGN)
+   在 Chassis_Update 统一应用(车身 + 世界系两种模式都要)。
    换档立即生效、无平滑(人工闭环要跟手);不做加减速斜坡。 */
 void Chassis_SetVelocity(Chassis_t *chassis, float vx, float vy, float wz)
 {
@@ -384,10 +385,14 @@ void Chassis_Update(Chassis_t *chassis, float yaw_deg, float wz_deg_s)
     L = CHASSIS_L_MM;
     w_rad = Chassis_EffWz(chassis, yaw_deg, wz_deg_s) * (PI / 180.0f);
 
-    /* 世界坐标系锁定:开启时把 vx/vy(世界系命令)旋转到车身系再解算;
+    /* 操作手命令帧(body 意图 / 世界系 +x)相对底盘运动学帧固定差 180°(整车装反):
+       vx/vy 恒取反。两种模式都要 —— 世界系锁定只是再按实时航向把取反后的命令转回车身系;
+       `rel` 只测车身转动变化量(锁定时从 0 起),不含这固定 180° 静态偏移,故不能只在 body 模式取反。 */
+    vx = chassis->vx * CHASSIS_OP_FRAME_SIGN;
+    vy = chassis->vy * CHASSIS_OP_FRAME_SIGN;
+
+    /* 世界坐标系锁定:开启时把 vx/vy(已取反的世界系命令)旋转到车身系再解算;
        wz 保持车体相对(天然如此,不受影响)。rel = 车身当前朝向 - 世界系基准朝向。 */
-    vx = chassis->vx;
-    vy = chassis->vy;
     if (chassis->world_lock)
     {
         float rel = Chassis_WrapDeg(yaw_deg - chassis->world_lock_yaw);
