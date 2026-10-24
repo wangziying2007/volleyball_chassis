@@ -47,21 +47,6 @@ typedef struct {
     bool     fast;    /* flag 3: 模式档(1=快速 / 0=慢速) */
     bool     turn_left90;  /* flag 4: 左转90°(边沿,相对当前航向) */
     bool     turn_right90; /* flag 5: 右转90°(边沿,相对当前航向) */
-    /* 机构(机械臂/夹爪,主控转发为 CAN1 命令) */
-    bool     mech_enable;     /* flag 6: 机构使能(从板须先使能才执行动作) */
-    bool     mech_disable;    /* flag 7: 机构失能(急停) */
-    bool     mech_reset;      /* flag 8: 机构复位(臂回未上电位姿) */
-    bool     left_work1;      /* flag 9: 左臂取块 */
-    bool     left_work2;      /* flag 10: 左臂放块 */
-    bool     right_work1;     /* flag 11: 右臂取块 */
-    bool     right_work2;     /* flag 12: 右臂放块 */
-    bool     left_pulldown;   /* flag 13: 左臂释放气泵 */
-    bool     right_pulldown;  /* flag 14: 右臂释放气泵 */
-    /* 灵石夹爪 */
-    bool     grip_open;       /* flag 15: 夹爪张开(预备) */
-    bool     grip_close;      /* flag 16: 夹爪夹紧(取灵石) */
-    bool     grip_release;    /* flag 17: 夹爪放开(放灵石) */
-    bool     grip_zero;       /* flag 18: 夹爪回零 */
     bool     lock;            /* flag 19: 世界坐标系锁定(1=世界系,0=车身系;上升沿重新冻结基准) */
     bool     tune;            /* flag 20: 速度环 P/I 调参(上升沿把 vel_p/vel_i 应用给四轮电调) */
     /* 目标速度 */
@@ -79,7 +64,6 @@ typedef struct {
     bool     enable;      /* 底盘使能 */
     bool     fast;        /* 模式档:1=快速 / 0=慢速 */
     bool     lock_active; /* 世界坐标系锁定是否激活 */
-    uint8_t  mech_status; /* 紧凑机构状态(位布局见 mech.h:MECH_STATUS_*) */
     float    yaw;         /* IMU 航向遥测(deg,相对上电零位,wrap 到 [-180,180]) */
 } BT_Status_t;
 

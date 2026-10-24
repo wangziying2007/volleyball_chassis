@@ -17,7 +17,6 @@
 #include "ZDrive.h"         /* Zmotor[] / Zdrive_Speed / Zdrive_Disable */
 #include "chassis.h"        /* 全向轮底盘业务组件 */
 #include "imu.h"            /* IMU 姿态读取(航向保持) */
-#include "mech.h"           /* 机构(CAN1)业务组件:Mech_PollButtons / Mech_GetStatus */
 
 /* CubeMX 默认任务 LEDTask:四灯流水 */
 void Alarm_Task(void *argument)
@@ -78,7 +77,6 @@ void Chassis_Task(void *argument)
 
     /* 自动绑定 Zmotor[0..3],顺序 = 右手系象限顺序(见 chassis.h) */
     Chassis_Init(&chassis);
-    Mech_Init();
     for (;;)
     {
         TickType_t now = xTaskGetTickCount();
@@ -126,7 +124,7 @@ void Chassis_Task(void *argument)
                 Chassis_SetVelocity(&chassis, cmd.vx, cmd.vy, cmd.wz);
 
                 /* 定点转向:按钮边沿 → RequestTurn(相对当前航向 ±90°)。
-                   边沿用上一帧状态判沿(与机构按键同模式);Chassis_RequestTurn 内部仅在使能时生效。 */
+                   边沿用上一帧状态判沿;Chassis_RequestTurn 内部仅在使能时生效。 */
                 bool turnL_edge = cmd.turn_left90 && !prev_turn_left;
                 bool turnR_edge = cmd.turn_right90 && !prev_turn_right;
                 prev_turn_left  = cmd.turn_left90;
@@ -148,24 +146,6 @@ void Chassis_Task(void *argument)
                 {
                     Chassis_TuneWheelPID(&chassis, cmd.vel_p, cmd.vel_i);
                 }
-
-                /* 机构按键:边沿检测 → 暂存 CAN1 命令(实际发送由 TIM2 里 Mech_Func 完成) */
-                MechButtons_t mb = {
-                    .enable        = cmd.mech_enable,
-                    .disable       = cmd.mech_disable,
-                    .reset         = cmd.mech_reset,
-                    .left_work1    = cmd.left_work1,
-                    .left_work2    = cmd.left_work2,
-                    .right_work1   = cmd.right_work1,
-                    .right_work2   = cmd.right_work2,
-                    .left_pulldown = cmd.left_pulldown,
-                    .right_pulldown = cmd.right_pulldown,
-                    .grip_open     = cmd.grip_open,
-                    .grip_close    = cmd.grip_close,
-                    .grip_release  = cmd.grip_release,
-                    .grip_zero     = cmd.grip_zero,
-                };
-                Mech_PollButtons(&mb);
             }
         }
 
@@ -180,7 +160,7 @@ void Chassis_Task(void *argument)
         }
 
 #if BT_SERV_ENABLE
-        /* 周期回传状态(enable + fast + world_lock + 机构状态 + yaw 航向遥测),每 BT_SERV_STATUS_PERIOD_MS 一次 */
+        /* 周期回传状态(enable + fast + world_lock + yaw 航向遥测),每 BT_SERV_STATUS_PERIOD_MS 一次 */
         static TickType_t last_status_tick = 0U;
         if ((now - last_status_tick) >= pdMS_TO_TICKS(BT_SERV_STATUS_PERIOD_MS))
         {
@@ -188,7 +168,6 @@ void Chassis_Task(void *argument)
             status.enable      = Chassis_IsEnabled(&chassis);
             status.fast        = Chassis_GetFast(&chassis);
             status.lock_active = Chassis_GetWorldLock(&chassis);
-            status.mech_status = Mech_GetStatus();
             status.yaw         = last_yaw; /* 实时航向遥测,即使未使能也回传(停着也能看朝向) */
             BT_Serv_Status_Send(&status);
             last_status_tick = now;

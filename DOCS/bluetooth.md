@@ -183,7 +183,7 @@ void MyMsg_Pack(uint8_t *payload, const MyMsg_t *msg) { ... }
 
 ### 6.1 底盘命令/状态字段表
 
-**RX 命令(上位机 → 板子)**:body = 23 字节 = bool 打包区 3 字节 + 5 个 float 20 字节。
+**RX 命令(上位机 → 板子)**:body = 21 字节 = bool 打包区 1 字节 + 5 个 float 20 字节。
 
 | body 偏移 | 字段 | 类型 | 说明 |
 | --- | --- | --- | --- |
@@ -193,50 +193,36 @@ void MyMsg_Pack(uint8_t *payload, const MyMsg_t *msg) { ... }
 | .. | bool[3] | 1 bit | fast(快速模式,默认 1.0x) |
 | .. | bool[4] | 1 bit | turn_left90(左转90°,边沿,相对当前航向) |
 | .. | bool[5] | 1 bit | turn_right90(右转90°,边沿,相对当前航向) |
-| .. | bool[6] | 1 bit | mech_enable(机构使能) |
-| .. | bool[7] | 1 bit | mech_disable(机构失能/急停) |
-| 1 | bool[8] | 1 bit | mech_reset(机构复位) |
-| .. | bool[9] | 1 bit | left_work1(左臂取块) |
-| .. | bool[10] | 1 bit | left_work2(左臂放块) |
-| .. | bool[11] | 1 bit | right_work1(右臂取块) |
-| .. | bool[12] | 1 bit | right_work2(右臂放块) |
-| .. | bool[13] | 1 bit | left_pulldown(左臂放气) |
-| .. | bool[14] | 1 bit | right_pulldown(右臂放气) |
-| .. | bool[15] | 1 bit | grip_open(灵石夹爪张开) |
-| 2 | bool[16] | 1 bit | grip_close(灵石夹爪夹紧) |
-| .. | bool[17] | 1 bit | grip_release(灵石夹爪放开) |
-| .. | bool[18] | 1 bit | grip_zero(灵石夹爪回零) |
-| 2 | bool[19] | 1 bit | world_lock(世界坐标系锁定:1=世界系 / 0=车身系) |
-| 2 | bool[20] | 1 bit | tune(速度环 P/I 调参:上升沿应用 vel_p/vel_i 给四轮) |
-| 3 | float[0] | 4B 小端 | vx 纵向速度,mm/s |
-| 7 | float[1] | 4B 小端 | vy 横向速度,mm/s |
-| 11 | float[2] | 4B 小端 | wz 自转角速度,°/s |
-| 15 | float[3] | 4B 小端 | vel_p 速度环 P(量程[0,100],tune 沿应用;RAM 生效,掉电回退) |
-| 19 | float[4] | 4B 小端 | vel_i 速度环 I(量程[0,100],同上) |
+| .. | bool[6] | 1 bit | lock(世界坐标系锁定:1=世界系 / 0=车身系) |
+| .. | bool[7] | 1 bit | tune(速度环 P/I 调参:上升沿应用 vel_p/vel_i 给四轮) |
+| 1 | float[0] | 4B 小端 | vx 纵向速度,mm/s |
+| 5 | float[1] | 4B 小端 | vy 横向速度,mm/s |
+| 9 | float[2] | 4B 小端 | wz 自转角速度,°/s |
+| 13 | float[3] | 4B 小端 | vel_p 速度环 P(量程[0,100],tune 沿应用;RAM 生效,掉电回退) |
+| 17 | float[4] | 4B 小端 | vel_i 速度环 I(量程[0,100],同上) |
 
-21 个 bool 打包进字节 0/1/2(LSB 在前):字节0 = enable/disable/reset/fast/turn_left90/turn_right90/mech_enable/mech_disable;
-字节1 = mech_reset/left_work1/left_work2/right_work1/right_work2/left_pulldown/right_pulldown/grip_open;
-字节2 = grip_close/grip_release/grip_zero/world_lock/tune + 3 位保留。
+8 个 bool 打包进字节 0(LSB 在前):enable/disable/reset/fast/turn_left90/turn_right90/lock/tune,正好占满 8 bit(无保留位)。
+机构 13 个按键字段(mech_enable/mech_disable/mech_reset/left_work1/left_work2/right_work1/right_work2/
+left_pulldown/right_pulldown/grip_open/grip_close/grip_release/grip_zero)已从命令帧移除,本板不再接收。
 
-**TX 状态(板子 → 上位机)**:body = 6 字节 = bool 打包区(3 bit,LSB 在前)+ mech_status(1 字节)+ yaw(4B 小端);其余 body 字节补 0。
+**TX 状态(板子 → 上位机)**:body = 5 字节 = bool 打包区(3 bit,LSB 在前)+ yaw(4B 小端);其余 body 字节补 0。
 
 | body 偏移 | 字段 | 类型 | 说明 |
 | --- | --- | --- | --- |
 | 0 | bool[0] | 1 bit | enable(当前使能状态) |
 | .. | bool[1] | 1 bit | fast(当前快速模式) |
 | .. | bool[2] | 1 bit | world_lock(世界系锁定当前是否激活) |
-| 1 | mech_status | 1B | 紧凑机构状态(位布局见 `Application/Mech/mech.h` 的 `MECH_STATUS_*`) |
-| 2 | yaw | 4B 小端 | IMU 航向遥测,deg,相对上电零位(wrap 到 [-180,180]) |
+| 1 | yaw | 4B 小端 | IMU 航向遥测,deg,相对上电零位(wrap 到 [-180,180]) |
 
-> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 23 字节、TX = 6 字节)。
-> 收发方向各自用各自包长,不再补到同一长度:命令帧 **26 字节**(包体 23),状态帧 **9 字节**(包体 6)。
+> 蓝牙帧不区分消息类型,payload 直接承载上述字段(RX = 21 字节、TX = 5 字节)。
+> 收发方向各自用各自包长,不再补到同一长度:命令帧 **24 字节**(包体 21),状态帧 **8 字节**(包体 5)。
 
 ## 7. 常见问题
 
 - **收不到**:先看蓝牙模块波特率(默认 115200)和上位机是否一致;再用串口助手
   直接看 UART6_RxBuffer 有没有原始数据。
 - **收到但解析失败**:用 VOFA+ 或串口助手看原始字节,检查包头是否被上位机
-  转成了字符串/加了换行;再核对帧格式是否与 BT_PAYLOAD_LENGTH 一致(0 时无包长字段,命令帧 26 字节、状态帧 9 字节;N 时包头后的包长字节 = N)。
+  转成了字符串/加了换行;再核对帧格式是否与 BT_PAYLOAD_LENGTH 一致(0 时无包长字段,命令帧 24 字节、状态帧 8 字节;N 时包头后的包长字节 = N)。
 - **发送队列满**(Bluetooth_Send 返回 false):把 BT_TX_QUEUE_SIZE 调大,
   或检查 TX 任务是不是卡在 DMA 上(发送完成中断没清 s_tx_busy)。
 - **DMA 相关报错**:确认缓冲在 D2 段(__RAM_D2_),发送前刷 D-Cache

@@ -48,18 +48,17 @@ extern "C" {
 /*   TX = 发送(状态,只写)→ BT_PROTO_TX_*_NUM。                       */
 /* 按上位机约定填写每种字段数量(0 = 该类型不出现)。                     */
 /*                                                                      */
-/* 底盘/机构分支字段约定(见 comm_config.h 顶部说明):                           */
+/* 底盘分支字段约定(见 comm_config.h 顶部说明):                          */
 /*   RX 命令(BT_Cmd_t):   bool[0]=enable 使能, [1]=disable 失能,                */
 /*                        [2]=reset 板子复位, [3]=fast 模式档,                   */
-/*                        [4]=turn_left90 左转90°, [5]=turn_right90 右转90°;      */
-/*                        bool[6..18]=机构 13 字段;                               */
-/*                        bool[19]=world_lock 世界系锁定(1=世界系/0=车身系);      */
-/*                        bool[20]=tune 速度环P/I调参(上升沿应用);                */
+/*                        [4]=turn_left90 左转90°, [5]=turn_right90 右转90°,      */
+/*                        [6]=lock 世界系锁定(1=世界系/0=车身系),                */
+/*                        [7]=tune 速度环P/I调参(上升沿应用);                    */
+/*                        (机构 13 字段已移除,本板不再接收机构按键)               */
 /*                        float[0]=vx(mm/s), [1]=vy(mm/s), [2]=wz(°/s),          */
 /*                        float[3]=vel_p, [4]=vel_i(速度环 P/I, 量程[0,100])      */
 /*   TX 状态(BT_Status_t): bool[0]=enable 使能, [1]=fast 模式档,                  */
 /*                        bool[2]=lock_active 世界系锁定是否激活,                  */
-/*                        u8[0]=mech_status(紧凑机构状态),                        */
 /*                        float[0]=yaw(IMU 航向遥测, deg,相对上电零位)。           */
 /* ------------------------------------------------------------------ */
 #include "comm_config.h"

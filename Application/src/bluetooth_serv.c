@@ -26,27 +26,15 @@ static void BT_Cmd_Parse(const uint8_t *payload, BT_Cmd_t *cmd)
     uint8_t bool_cnt = 0U;
     uint8_t f32_cnt  = 0U;
     /* 命令字段(顺序须与 comm_config.h 的 BT_PROTO_RX_* 一致):
-       bool[0..20] = enable/disable/reset/fast/turn_left90/turn_right90 + 机构 13 字段 + lock/tune,
-       float[0..4] = vx/vy/wz/vel_p/vel_i */
+       bool[0..7] = enable/disable/reset/fast/turn_left90/turn_right90/lock/tune,
+       float[0..4] = vx/vy/wz/vel_p/vel_i。
+       机构 13 字段已从 BT_Cmd_t 移除,本板不再解析/转发机构按键。 */
     cmd->enable         = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->disable        = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->reset          = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->fast           = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->turn_left90    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->turn_right90   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->mech_enable    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->mech_disable   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->mech_reset     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->left_work1     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->left_work2     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->right_work1    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->right_work2    = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->left_pulldown  = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->right_pulldown = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->grip_open      = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->grip_close     = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->grip_release   = BT_Proto_RX_ReadBool(payload, bool_cnt++);
-    cmd->grip_zero      = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->lock           = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->tune           = BT_Proto_RX_ReadBool(payload, bool_cnt++);
     cmd->vx             = BT_Proto_RX_ReadFloat(payload, f32_cnt++);
@@ -62,7 +50,6 @@ static void BT_Status_Pack(uint8_t *payload, const BT_Status_t *status)
     BT_Proto_TX_WriteBool(payload, 0, status->enable);
     BT_Proto_TX_WriteBool(payload, 1, status->fast);
     BT_Proto_TX_WriteBool(payload, 2, status->lock_active);
-    BT_Proto_TX_WriteU8(payload, 0, status->mech_status);
     BT_Proto_TX_WriteFloat(payload, 0, status->yaw);
 }
 

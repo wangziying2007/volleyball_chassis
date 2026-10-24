@@ -28,7 +28,6 @@
 #include "board_config.h"
 #include "bluetooth.h"
 #include "imu.h"
-#include "mech.h"
 
 __RAM_D2_ ALIGN_32B uint8_t UART1_RxBuffer[UART_RX_BUFFER_SIZE] = {0};
 __RAM_D2_ ALIGN_32B uint8_t UART3_RxBuffer[UART_RX_BUFFER_SIZE] = {0};
@@ -74,7 +73,6 @@ void TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 #if USE_ZMDR
             ZdriveFunc();
 #endif
-            Mech_Func(); /* 机构暂存命令 → CAN1_Txqueue 发出 */
         }
     }
     /* TIM3/4/5 是备用定时器,需要的话在这里加分支,并在 main.c 里启动 */
@@ -96,12 +94,6 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 
         if (hfdcan == &hfdcan1)
         {
-            /* CAN1 机构从板反馈:主控首先过滤 0x050101xx */
-            if (Mech_IsOurs(&Rxheader))
-            {
-                Mech_OnFeedback(&Rxheader, Rx_data);
-                return;
-            }
 #if USE_ZMDR
             ZdriveReceive(Rxheader, Rx_data, 0U);
 #endif

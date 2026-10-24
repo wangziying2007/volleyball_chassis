@@ -18,11 +18,11 @@
 | Unitree GO-M8010-6 | `Motor/src/UnitreeMotor.c`,UART7 单路 RS485,绝对编码器,上电默认不自动清零 |
 | 底盘(全向轮) | `Application/Chassis/`,45° 全向轮四轮底盘,vx/vy/wz 解算 → 四轮 rpm;蓝牙触发使能/复位/设速,快速/慢速模式切换(默认快速 1.0x、慢速 0.25x),蓝牙掉线超时急停(默认 200ms);**IMU 航向保持**(wz≈0 时按 IMU 锁向) |
 | IMU | `Communication/IMU/`,Yesense 协议(USART3),滚转/俯仰/航向(相对上电零位)+ 角速度,FreeRTOS Queue 接收 |
-| 机构(CAN1 主控侧) | `Application/Mech/`,蓝牙机构按键(2 吸盘臂 + 1 灵石夹爪) → CAN1 扩展帧命令给从板,收从板反馈;从板在开发,主控侧已留收发接口 |
+| 机构 | 已移除(本板只保留底盘代码,`Application/Mech` 与蓝牙机构按键字段一并删除) |
 | 中断回调 | `Application/IQRhandler.c`,TIM/FDCAN/UART 回调集中 |
 | 任务 | CubeMX 创建,`Application/myostasks.c` 覆盖弱函数 |
 | VOFA+ 打波 | `Communication/VOFA/vofa.c`,JustFloat 协议,UART9 输出,API 见 [DOCS/vofa_plus.md](DOCS/vofa_plus.md) |
-| 蓝牙串口 | `Communication/Bluetooth/`,帧层 bluetooth.c + Payload 协议层 bluetooth_protocol.h,USART6,帧长 17B(包体 14B),承载底盘命令 + 机构按键,见 [DOCS/bluetooth.md](DOCS/bluetooth.md) |
+| 蓝牙串口 | `Communication/Bluetooth/`,帧层 bluetooth.c + Payload 协议层 bluetooth_protocol.h,USART6,命令帧 24B(包体 21B)、状态帧 8B(包体 5B),只承载底盘命令/状态,见 [DOCS/bluetooth.md](DOCS/bluetooth.md) |
 
 ## 目录结构
 
@@ -30,7 +30,7 @@
 27RC_Proj_Template/
 ├─ Motor/            电机驱动 + CAN 队列
 ├─ Communication/    对外数据通信:Bluetooth(帧层 + Payload 协议层)、VOFA 打波、IMU
-├─ Application/      任务函数、中断回调、业务逻辑(Chassis/Mech)、includes.h 聚合头
+├─ Application/      任务函数、中断回调、业务逻辑(Chassis)、includes.h 聚合头
 ├─ BSP/              板级支持:LED、Buzzer
 ├─ Algorithm/        纯算法库:PID、滤波、数学工具
 ├─ Config/           配置宏:board_config / motor_config / app_config / comm_config
@@ -86,8 +86,8 @@ Zmotor[0].valSetNow.pos_deg = 90.0f;    /* 目标角度 90° */
 | --- | --- |
 | [DOCS/README.md](DOCS/README.md) | 文档索引 |
 | [DOCS/需求分析_筑塔寻石B2.md](DOCS/需求分析_筑塔寻石B2.md) | 竞赛任务「筑塔寻石」需求分析,映射到 B2 机构 |
-| [DOCS/通信协议.md](DOCS/通信协议.md) | 完整通信协议:蓝牙 + CAN2 底盘 + CAN1 机构 |
-| [DOCS/B2通信协议.md](DOCS/B2通信协议.md) | 主从板(CAN1 机构)接口,给从板队友 |
+| [DOCS/通信协议.md](DOCS/通信协议.md) | 完整通信协议:蓝牙 + CAN2 底盘(TX 状态帧已去掉机构状态;CAN1 机构部分为本板不再实现的历史内容) |
+| [DOCS/B2通信协议.md](DOCS/B2通信协议.md) | 历史文档:主从板(CAN1 机构)接口,本板已删除机构代码,仅作存档 |
 | [DOCS/使用说明.md](DOCS/使用说明.md) | 联调向:上位机蓝牙配置、当前功能、验证步骤 |
 | [DOCS/architecture.md](DOCS/architecture.md) | 目录结构、中断/电机时序、FreeRTOS 约定、内存布局 |
 | [DOCS/porting_guide.md](DOCS/porting_guide.md) | 移植记录、新增电机/UART/TIM/任务指南 |
